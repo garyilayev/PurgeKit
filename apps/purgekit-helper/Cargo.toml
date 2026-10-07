@@ -1,0 +1,28 @@
+[package]
+name = "purgekit-helper"
+description = "PurgeKit elevated helper: rule IDs in, handle-based deletes, results over a user-only pipe. No UI."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+purgekit-core.workspace = true
+purgekit-rules.workspace = true
+purgekit-engine.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+purgekit-win.workspace = true
+
+[build-dependencies]
+embed-manifest = "1.5"
+
+# The requireAdministrator manifest also applies to a test binary, which then
+# cannot start unelevated. Helper logic is tested in purgekit-engine (helper.rs)
+# and purgekit-win (tests/ntfs.rs).
+[[bin]]
+name = "purgekit-helper"
+path = "src/main.rs"
+test = false
