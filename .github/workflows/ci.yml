@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      # Includes Windows integration tests on real NTFS (junctions, hard
+      # links, open files, swapped roots) and the helper adversarial test.
+      - name: Test
+        run: cargo test --workspace
+
+  no-network:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: Dependency bans (no HTTP/socket crates), licenses, advisories
+        run: cargo deny check
+      - name: Release build
+        run: cargo build --release -p purgekit -p purgekit-helper
+      - name: Neither binary imports a networking DLL
+        run: cargo run -p xtask -- check-imports release
+
+  bench:
+    runs-on: windows-latest
+    if: github.event_name == 'push'
+    env:
+      PURGEKIT_BENCH_FILES: "200000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Benchmarks
+        run: cargo bench -p purgekit-engine -p purgekit-win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: criterion
+          path: target/criterion
