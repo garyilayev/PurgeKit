@@ -7,6 +7,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod delete;
+pub mod elevate;
 mod handle;
 mod nt;
 mod sys;
