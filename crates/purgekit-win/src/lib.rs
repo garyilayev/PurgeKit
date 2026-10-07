@@ -10,6 +10,7 @@ mod delete;
 pub mod elevate;
 mod handle;
 mod nt;
+pub mod shell;
 mod sys;
 mod walk;
 
