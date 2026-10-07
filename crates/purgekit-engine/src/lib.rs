@@ -9,8 +9,12 @@ pub mod backend;
 pub mod cancel;
 pub mod events;
 pub mod exclusions;
+pub mod plan;
 pub mod testing;
+pub mod tree;
 
 pub use backend::FsBackend;
 pub use cancel::CancelToken;
 pub use exclusions::{Exclusion, Exclusions};
+pub use plan::CleanupPlan;
+pub use tree::{NodeKind, ResultTree};
