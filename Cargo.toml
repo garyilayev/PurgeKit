@@ -6,6 +6,7 @@ members = [
     "crates/purgekit-engine",
     "crates/purgekit-win",
     "apps/purgekit-helper",
+    "xtask",
 ]
 
 [workspace.package]
