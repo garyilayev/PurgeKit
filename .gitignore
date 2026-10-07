@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# Product spec stays local.
+PurgeKit-Product-Spec-v1.0.md
