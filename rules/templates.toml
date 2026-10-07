@@ -1,0 +1,22 @@
+# Shared layouts. A fix here lands in every rule that uses the template.
+
+# Chromium cache layout: Chrome, Edge, and every Electron app.
+# Rules set `profile = "*"` (Default, Profile 1, ...) or `profile = "."` (Electron).
+[template.chromium-cache]
+include = ["{profile}/Cache/**", "{profile}/Code Cache/**", "{profile}/GPUCache/**"]
+exclude = ["{profile}/Cookies*", "{profile}/Login Data*", "{profile}/Bookmarks*",
+           "{profile}/History*", "{profile}/Sessions/**", "{profile}/Local Storage/**",
+           "{profile}/IndexedDB/**"]
+regenerates = true
+
+# Temp folders. Everything old enough is a candidate, but names that belong to
+# protected data are excluded here as well as by the compiled deny-list.
+[template.temp-files]
+include = ["**"]
+exclude = ["**/Login Data*", "**/Bookmarks*", "**/Web Data*", "**/Local State*",
+           "**/logins.json*", "**/logins-backup.json*", "**/key4.db*", "**/key3.db*",
+           "**/signons.sqlite*", "**/places.sqlite*", "**/bookmarkbackups/**",
+           "**/*.kdbx*", "**/*.kdb*", "**/Microsoft/Protect/**", "**/Microsoft/Credentials/**",
+           "**/Microsoft/Vault/**", "**/Bitwarden/**", "**/1Password/**", "**/KeePassXC/**",
+           "**/KeePass/**"]
+regenerates = false
