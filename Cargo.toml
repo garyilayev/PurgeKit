@@ -4,6 +4,7 @@ members = [
     "crates/purgekit-core",
     "crates/purgekit-rules",
     "crates/purgekit-engine",
+    "crates/purgekit-win",
 ]
 
 [workspace.package]

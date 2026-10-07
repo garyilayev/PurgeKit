@@ -249,6 +249,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "purgekit-win"
+version = "0.1.0"
+dependencies = [
+ "purgekit-core",
+ "purgekit-engine",
+ "purgekit-rules",
+ "rayon",
+ "tempfile",
+ "tracing",
+ "windows-sys",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

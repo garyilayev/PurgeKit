@@ -1,0 +1,39 @@
+[package]
+name = "purgekit-win"
+description = "Every Win32/NT call PurgeKit makes. The only crate that allows unsafe."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+purgekit-core.workspace = true
+purgekit-rules.workspace = true
+purgekit-engine.workspace = true
+rayon.workspace = true
+tracing.workspace = true
+
+[target.'cfg(windows)'.dependencies.windows-sys]
+workspace = true
+features = [
+    "Wdk_Foundation",
+    "Wdk_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Pipes",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+]
+
+[dev-dependencies]
+tempfile = "3"
