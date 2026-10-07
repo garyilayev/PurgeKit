@@ -974,31 +974,53 @@ fn refresh_space(ui: &AppWindow, g: &Model_) {
         .iter()
         .map(|d| {
             let used = d.total.saturating_sub(d.free);
-            let cleanable: Option<u64> = g.scan.as_ref().map(|r| {
-                r.tree
-                    .cleaners()
-                    .filter(|&c| {
-                        r.root_of(r.tree.node(c).rule).is_some_and(|p| {
-                            p.to_string_lossy()
-                                .to_uppercase()
-                                .starts_with(&d.name.to_uppercase())
-                        })
-                    })
-                    .map(|c| r.tree.node(c).total_alloc)
-                    .sum()
+            // Same rule as Home's category sizes: only visible cleaners whose app
+            // is not running. Blocked bytes are reported separately.
+            let found: Option<(u64, u64)> = g.scan.as_ref().map(|r| {
+                let ctx = Ctx {
+                    result: r,
+                    rules: builtin(),
+                    show_advanced: g.settings.show_advanced,
+                };
+                let (mut now, mut blocked) = (0u64, 0u64);
+                for c in r.tree.cleaners() {
+                    let on_drive = r.root_of(r.tree.node(c).rule).is_some_and(|p| {
+                        p.to_string_lossy()
+                            .to_uppercase()
+                            .starts_with(&d.name.to_uppercase())
+                    });
+                    if !on_drive || !ctx.visible(c) {
+                        continue;
+                    }
+                    let bytes = r.tree.node(c).total_alloc;
+                    if ctx.is_blocked(c) {
+                        blocked += bytes;
+                    } else {
+                        now += bytes;
+                    }
+                }
+                (now, blocked)
             });
+            let cleanable = found.map(|(now, _)| now);
             let total = d.total.max(1) as f32;
             let label = if d.label.is_empty() {
                 d.name.clone()
             } else {
                 format!("{} ({})", d.label, d.name)
             };
-            let text = match cleanable {
-                Some(c) => format!(
+            let text = match found {
+                Some((now, blocked)) if blocked > 0 => format!(
+                    "{} free of {} · {} can be cleaned · {} more after you close open apps",
+                    format_bytes(d.free),
+                    format_bytes(d.total),
+                    format_bytes(now),
+                    format_bytes(blocked)
+                ),
+                Some((now, _)) => format!(
                     "{} free of {} · {} can be cleaned",
                     format_bytes(d.free),
                     format_bytes(d.total),
-                    format_bytes(c)
+                    format_bytes(now)
                 ),
                 None => format!("{} free of {}", format_bytes(d.free), format_bytes(d.total)),
             };

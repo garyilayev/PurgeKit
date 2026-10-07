@@ -208,6 +208,17 @@ struct Redirected {
     base: PathBuf,
 }
 
+impl Redirected {
+    /// Expands 8.3 components like the real `WinFs::resolve` does. CI runners
+    /// have `TEMP=C:\Users\RUNNER~1\...`; an unexpanded short name makes the
+    /// protected-data check fail closed and the scan finds nothing.
+    fn new(dir: &Path) -> Self {
+        Redirected {
+            base: purgekit_win::long_path(dir),
+        }
+    }
+}
+
 impl FsBackend for Redirected {
     fn resolve(&self, folder: KnownFolder) -> Option<PathBuf> {
         Some(self.base.join(folder.token()))
@@ -258,9 +269,8 @@ fn age(p: &Path, days: u64) {
 #[test]
 fn helper_never_follows_a_planted_junction() {
     let dir = tempfile::tempdir().unwrap();
-    let fs = Redirected {
-        base: dir.path().to_path_buf(),
-    };
+    let fs = Redirected::new(dir.path());
+
     let wintemp = dir.path().join("Windows/Temp");
     let victim = dir.path().join("victim_system_files");
     write(&victim.join("important.dll"), 1000);
@@ -305,9 +315,8 @@ fn helper_never_follows_a_planted_junction() {
 #[test]
 fn end_to_end_chrome_fixture() {
     let dir = tempfile::tempdir().unwrap();
-    let fs = Redirected {
-        base: dir.path().to_path_buf(),
-    };
+    let fs = Redirected::new(dir.path());
+
     let ud = dir.path().join("LocalAppData/Google/Chrome/User Data");
     let delete = [
         "Default/Cache/Cache_Data/f_000001",

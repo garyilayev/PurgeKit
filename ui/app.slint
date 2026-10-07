@@ -857,13 +857,59 @@ component CleanPage inherits Rectangle {
 
 // ---------------------------------------------------------------- Space
 
+// One color key for the drive bars. The swatch colors must match the bar segments.
+component LegendItem inherits HorizontalLayout {
+    in property <string> text;
+    in property <color> swatch;
+    spacing: 6px;
+    accessible-role: list-item;
+    accessible-label: root.text;
+    Rectangle {
+        y: (parent.height - self.height) / 2;
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        background: root.swatch;
+        // "Free" is close to the page color; the border keeps it visible.
+        border-width: 1px;
+        border-color: Palette.border;
+    }
+    Muted {
+        text: root.text;
+        font-size: 12px;
+        wrap: no-wrap;
+        vertical-alignment: center;
+    }
+}
+
 component SpacePage inherits VerticalLayout {
+    // Start alignment: extra height stays below the content instead of
+    // stretching each drive block (which pushed the bar away from its name).
+    alignment: start;
     padding: 24px;
     spacing: 18px;
     Text {
         text: @tr("Drives");
         font-size: 20px;
         font-weight: 600;
+    }
+    HorizontalLayout {
+        alignment: start;
+        spacing: 20px;
+        accessible-role: list;
+        accessible-label: @tr("Legend");
+        LegendItem {
+            text: @tr("Used");
+            swatch: Palette.foreground.with-alpha(0.35);
+        }
+        LegendItem {
+            text: @tr("Can be cleaned");
+            swatch: Palette.accent-background;
+        }
+        LegendItem {
+            text: @tr("Free");
+            swatch: Palette.alternate-background;
+        }
     }
     for d in App.drives: VerticalLayout {
         spacing: 6px;
@@ -887,7 +933,6 @@ component SpacePage inherits VerticalLayout {
         Muted { text: d.text; font-size: 12px; }
     }
     Muted { text: App.space-note; font-size: 12px; }
-    Rectangle { vertical-stretch: 1; }
 }
 
 // ---------------------------------------------------------------- Settings
