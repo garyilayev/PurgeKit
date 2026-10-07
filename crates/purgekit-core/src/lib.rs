@@ -8,6 +8,7 @@
 
 pub mod format;
 pub mod path;
+pub mod protected;
 pub mod telemetry;
 pub mod time;
 pub mod types;
