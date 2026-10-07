@@ -5,6 +5,7 @@ members = [
     "crates/purgekit-rules",
     "crates/purgekit-engine",
     "crates/purgekit-win",
+    "apps/purgekit",
     "apps/purgekit-helper",
     "xtask",
 ]

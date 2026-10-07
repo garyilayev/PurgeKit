@@ -6,6 +6,7 @@ import { Button, ComboBox, LineEdit, ListView, ScrollView, Switch, ProgressIndic
 export struct CategoryRow {
     node: int,
     name: string,
+    detail: string,
     size: string,
     check: int, // 0 unchecked, 1 checked, 2 partial
 }
@@ -16,12 +17,18 @@ export struct TreeRow {
     name: string,
     size: string,
     modified: string,
-    safety: string,
+    badge: string,      // empty unless the row needs attention
+    badge-tone: int,    // 0 neutral, 1 caution, 2 critical
     check: int,
     expandable: bool,
     expanded: bool,
     aggregate: bool,
     blocked: bool,
+}
+
+export struct BlockedRow {
+    app: string,
+    size: string,
 }
 
 export struct SkipRow {
@@ -68,7 +75,8 @@ export global App {
     in property <string> clean-label;
     in property <bool> can-clean;
     in property <[CategoryRow]> categories;
-    in property <[TextRow]> blocked;
+    in property <[BlockedRow]> blocked;
+    in property <string> blocked-summary;
     in property <string> footer;
     in property <string> advanced-hint;
 
@@ -76,6 +84,7 @@ export global App {
     in property <[TreeRow]> rows;
     in-out property <int> current-row: -1;
     in property <DetailsData> details;
+    in-out property <int> sort-by: 0;       // 0 size, 1 name, 2 modified
     in property <string> selection-summary;
 
     // Cleaning / done
@@ -120,6 +129,37 @@ export global App {
     callback remove-exclusion(int);
     callback export-diagnostics();
     callback check-updates();
+}
+
+// Fluent InfoBar / status colors. Palette has no semantic colors.
+global Theme {
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <color> caution-background: root.dark ? #433519 : #fff4ce;
+    out property <color> caution-foreground: root.dark ? #fce100 : #9d5d00;
+    out property <color> critical-background: root.dark ? #442726 : #fde7e9;
+    out property <color> critical-foreground: root.dark ? #ff99a4 : #c42b1c;
+}
+
+// Small label for rows that need attention. tone: 0 neutral, 1 caution, 2 critical.
+component Badge inherits Rectangle {
+    in property <string> text;
+    in property <int> tone;
+    height: 20px;
+    border-radius: 4px;
+    background: root.tone == 2 ? Theme.critical-background : root.tone == 1 ? Theme.caution-background : Palette.alternate-background;
+    border-width: root.tone == 0 ? 1px : 0px;
+    border-color: Palette.border;
+    HorizontalLayout {
+        padding-left: 6px;
+        padding-right: 6px;
+        Text {
+            text: root.text;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+            color: root.tone == 2 ? Theme.critical-foreground : root.tone == 1 ? Theme.caution-foreground : Palette.foreground.with-alpha(0.75);
+        }
+    }
 }
 
 component TriCheck inherits Rectangle {
@@ -200,7 +240,7 @@ component IdleView inherits VerticalLayout {
     padding: 24px;
     Text {
         text: @tr("See what's wasting space.");
-        font-size: 26px;
+        font-size: 28px;
         font-weight: 600;
         horizontal-alignment: center;
     }
@@ -217,7 +257,7 @@ component IdleView inherits VerticalLayout {
             clicked => { App.scan(); }
         }
     }
-    Footer { }
+    if App.footer != "": Footer { }
 }
 
 component ScanningView inherits VerticalLayout {
@@ -247,22 +287,95 @@ component ScanningView inherits VerticalLayout {
     }
 }
 
-component ResultsView inherits VerticalLayout {
-    spacing: 14px;
-    padding: 24px;
-    Text {
-        text: App.headline;
-        font-size: 24px;
-        font-weight: 600;
+// Fluent informational InfoBar: apps whose caches are skipped because they are running.
+component BlockedNotice inherits Rectangle {
+    background: Palette.alternate-background;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: Palette.border;
+    accessible-role: text;
+    accessible-label: App.blocked-summary;
+    VerticalLayout {
+        padding: 12px;
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 6px;
+        HorizontalLayout {
+            spacing: 10px;
+            Rectangle {
+                y: (parent.height - self.height) / 2;
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                background: Palette.accent-background;
+                Text {
+                    text: "i";
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: Palette.accent-foreground;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            Text {
+                text: App.blocked-summary;
+                font-weight: 600;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+        }
+        for b in App.blocked: HorizontalLayout {
+            padding-left: 26px;
+            spacing: 12px;
+            Muted {
+                text: b.app;
+                font-size: 12px;
+                wrap: no-wrap;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+            Muted {
+                text: b.size;
+                font-size: 12px;
+                wrap: no-wrap;
+                horizontal-alignment: right;
+            }
+        }
+        HorizontalLayout {
+            padding-left: 26px;
+            Muted {
+                text: @tr("PurgeKit never closes apps. Close them yourself, then select Rescan.");
+                font-size: 12px;
+                wrap: no-wrap;
+                overflow: elide;
+            }
+        }
     }
-    if App.partial-note != "": Muted { text: App.partial-note; }
+}
+
+component ResultsView inherits VerticalLayout {
+    spacing: 12px;
+    padding: 24px;
+    VerticalLayout {
+        spacing: 4px;
+        Text {
+            text: App.headline;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        if App.partial-note != "": Muted {
+            text: App.partial-note;
+            font-size: 12px;
+        }
+    }
     ScrollView {
         vertical-stretch: 1;
         VerticalLayout {
             alignment: start;
             spacing: 2px;
             for cat in App.categories: Rectangle {
-                height: 44px;
+                height: 56px;
                 border-radius: 6px;
                 background: area.has-hover ? Palette.alternate-background : transparent;
                 area := TouchArea {
@@ -278,26 +391,40 @@ component ResultsView inherits VerticalLayout {
                         label: cat.name;
                         toggled => { App.toggle-category(cat.node); }
                     }
-                    Text {
-                        text: cat.name;
-                        font-size: 15px;
-                        vertical-alignment: center;
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
                         horizontal-stretch: 1;
+                        Text {
+                            text: cat.name;
+                            font-size: 14px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                        Muted {
+                            text: cat.detail;
+                            font-size: 12px;
+                            wrap: no-wrap;
+                            overflow: elide;
+                        }
                     }
                     Text {
                         text: cat.size;
-                        font-size: 15px;
+                        font-size: 14px;
                         vertical-alignment: center;
                     }
                 }
             }
-            for b in App.blocked: Muted {
-                text: b.text;
-                font-size: 13px;
+            if App.blocked.length > 0: VerticalLayout {
+                padding-top: 10px;
+                BlockedNotice { }
             }
-            if App.advanced-hint != "": Muted {
-                text: App.advanced-hint;
-                font-size: 12px;
+            if App.advanced-hint != "": VerticalLayout {
+                padding-top: 10px;
+                Muted {
+                    text: App.advanced-hint;
+                    font-size: 12px;
+                }
             }
         }
     }
@@ -319,7 +446,7 @@ component ResultsView inherits VerticalLayout {
             clicked => { App.scan(); }
         }
     }
-    Footer { horizontal-alignment: left; }
+    if App.footer != "": Footer { horizontal-alignment: left; }
 }
 
 // ---------------------------------------------------------------- Review (Cleanup Explorer)
@@ -334,7 +461,7 @@ component TreeRowView inherits Rectangle {
     accessible-action-default => {
         if (root.item.expandable) { App.expand-row(root.item.node); } else { App.select-row(root.item.node); }
     }
-    accessible-label: root.item.name + ", " + root.item.size + (root.item.check == 1 ? ", checked" : root.item.check == 2 ? ", partly checked" : ", not checked");
+    accessible-label: root.item.name + ", " + root.item.size + (root.item.badge != "" ? ", " + root.item.badge : "") + (root.item.check == 1 ? ", checked" : root.item.check == 2 ? ", partly checked" : ", not checked");
     area := TouchArea {
         clicked => { App.select-row(root.item.node); }
         double-clicked => { if (root.item.expandable) { App.expand-row(root.item.node); } }
@@ -404,23 +531,26 @@ component TreeRowView inherits Rectangle {
             label: root.item.name;
             toggled => { App.toggle-row(root.item.node); }
         }
-        Text {
-            text: root.item.name;
-            overflow: elide;
-            vertical-alignment: center;
+        HorizontalLayout {
             horizontal-stretch: 1;
-            color: root.item.aggregate || root.item.blocked ? Palette.foreground.with-alpha(0.6) : Palette.foreground;
-            font-italic: root.item.aggregate;
+            spacing: 8px;
+            Text {
+                text: root.item.name;
+                overflow: elide;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                color: root.item.aggregate || root.item.blocked ? Palette.foreground.with-alpha(0.6) : Palette.foreground;
+                font-italic: root.item.aggregate;
+            }
+            if root.item.badge != "": Badge {
+                y: (parent.height - self.height) / 2;
+                text: root.item.badge;
+                tone: root.item.badge-tone;
+            }
         }
         if wide: Text {
             text: root.item.modified;
             width: 110px;
-            vertical-alignment: center;
-            color: Palette.foreground.with-alpha(0.65);
-        }
-        if wide: Text {
-            text: root.item.safety;
-            width: 70px;
             vertical-alignment: center;
             color: Palette.foreground.with-alpha(0.65);
         }
@@ -429,6 +559,34 @@ component TreeRowView inherits Rectangle {
             width: 80px;
             horizontal-alignment: right;
             vertical-alignment: center;
+        }
+    }
+}
+
+// Clickable column title. The active sort column is bold and in the accent color.
+component ColumnHeader inherits Rectangle {
+    in property <string> text;
+    in property <int> sort;
+    in property <TextHorizontalAlignment> align: left;
+    property <bool> active: App.sort-by == root.sort;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { touch.clicked(); }
+    Text {
+        width: 100%;
+        text: root.text;
+        font-size: 12px;
+        font-weight: root.active ? 600 : 400;
+        color: root.active ? Palette.accent-background : Palette.foreground.with-alpha(0.65);
+        horizontal-alignment: root.align;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            App.sort-by = root.sort;
+            App.sort-changed(root.sort);
         }
     }
 }
@@ -442,7 +600,19 @@ component DetailsPanel inherits Rectangle {
             alignment: start;
             padding: 16px;
             spacing: 10px;
-            if !App.details.visible: Muted { text: @tr("Select an item to see what it is, why it is safe, and what happens after you remove it."); }
+            if !App.details.visible: VerticalLayout {
+                spacing: 10px;
+                Muted { text: @tr("Select an item to see what it is, why it is safe, and what happens after you remove it."); }
+                Rectangle { height: 1px; background: Palette.border; }
+                Text { text: @tr("Labels"); font-weight: 600; }
+                Muted { text: @tr("Items with no label are safe and are selected for you."); font-size: 12px; }
+                HorizontalLayout { alignment: start; Badge { text: @tr("Review"); tone: 1; } }
+                Muted { text: @tr("Not selected for you. Look at these before you clean."); font-size: 12px; }
+                HorizontalLayout { alignment: start; Badge { text: @tr("Advanced"); tone: 2; } }
+                Muted { text: @tr("System files. Never selected for you, and some ask for administrator permission."); font-size: 12px; }
+                HorizontalLayout { alignment: start; Badge { text: @tr("App open"); tone: 0; } }
+                Muted { text: @tr("The app is running, so PurgeKit skips these files until you close it."); font-size: 12px; }
+            }
             if App.details.visible: VerticalLayout {
                 spacing: 10px;
                 Text { text: App.details.title; font-size: 16px; font-weight: 600; wrap: word-wrap; }
@@ -478,8 +648,9 @@ component ReviewView inherits VerticalLayout {
             edited(text) => { App.search-changed(text); }
         }
         ComboBox {
+            width: 160px;
             model: [@tr("Sort by size"), @tr("Sort by name"), @tr("Sort by date")];
-            current-index: 0;
+            current-index <=> App.sort-by;
             selected => { App.sort-changed(self.current-index); }
         }
     }
@@ -533,11 +704,38 @@ component ReviewView inherits VerticalLayout {
             Rectangle {
                 border-radius: 8px;
                 clip: true;
-                list := ListView {
-                    for r[i] in App.rows: TreeRowView {
-                        item: r;
-                        current: i == App.current-row;
-                        wide: root.window-width > 900px;
+                VerticalLayout {
+                    HorizontalLayout {
+                        height: 32px;
+                        // Lines up with the row name: padding + chevron + check box + spacing.
+                        padding-left: 8px + 14px + 8px + 18px + 8px;
+                        padding-right: 12px;
+                        spacing: 8px;
+                        ColumnHeader {
+                            text: @tr("Name");
+                            sort: 1;
+                            horizontal-stretch: 1;
+                        }
+                        if root.window-width > 900px: ColumnHeader {
+                            text: @tr("Modified");
+                            sort: 2;
+                            width: 110px;
+                        }
+                        ColumnHeader {
+                            text: @tr("Size");
+                            sort: 0;
+                            width: 80px;
+                            align: right;
+                        }
+                    }
+                    Rectangle { height: 1px; background: Palette.border; }
+                    list := ListView {
+                        vertical-stretch: 1;
+                        for r[i] in App.rows: TreeRowView {
+                            item: r;
+                            current: i == App.current-row;
+                            wide: root.window-width > 900px;
+                        }
                     }
                 }
                 // Drawn after the list so hovered or selected row backgrounds cannot paint over the frame.
@@ -596,16 +794,14 @@ component CleaningView inherits VerticalLayout {
 component SkipView inherits VerticalLayout {
     in property <SkipRow> skip;
     property <bool> open: false;
-    spacing: 4px;
-    HorizontalLayout {
+    spacing: 6px;
+    Text {
+        text: root.skip.text;
+        wrap: word-wrap;
+    }
+    if root.skip.retry || root.skip.details != "": HorizontalLayout {
         spacing: 10px;
         alignment: start;
-        Text {
-            text: root.skip.text;
-            wrap: word-wrap;
-            vertical-alignment: center;
-            horizontal-stretch: 1;
-        }
         if root.skip.retry: Button {
             text: @tr("Retry");
             clicked => { App.retry(); }
@@ -615,7 +811,7 @@ component SkipView inherits VerticalLayout {
             clicked => { root.open = !root.open; }
         }
     }
-    if open: Muted {
+    if root.open: Muted {
         text: root.skip.details;
         font-size: 12px;
     }
@@ -626,7 +822,7 @@ component DoneView inherits VerticalLayout {
     padding: 24px;
     Text {
         text: App.done-headline;
-        font-size: 24px;
+        font-size: 28px;
         font-weight: 600;
     }
     Muted { text: App.done-sub; }
@@ -635,7 +831,7 @@ component DoneView inherits VerticalLayout {
         vertical-stretch: 1;
         VerticalLayout {
             alignment: start;
-            spacing: 10px;
+            spacing: 16px;
             for s in App.skips: SkipView { skip: s; }
         }
     }
@@ -666,7 +862,7 @@ component SpacePage inherits VerticalLayout {
     spacing: 18px;
     Text {
         text: @tr("Drives");
-        font-size: 22px;
+        font-size: 20px;
         font-weight: 600;
     }
     for d in App.drives: VerticalLayout {
@@ -696,62 +892,143 @@ component SpacePage inherits VerticalLayout {
 
 // ---------------------------------------------------------------- Settings
 
+// Windows 11 Settings group title ("Body Strong").
 component Section inherits Text {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
+}
+
+// Windows 11 settings card: text on the left, the control on the right.
+component SettingsCard inherits Rectangle {
+    in property <string> title;
+    in property <string> description;
+    background: Palette.alternate-background;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: Palette.border;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 16px;
+        // Cards that hold only custom content (History) give it the full width.
+        if root.title != "" || root.description != "": VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+            if root.title != "": Text { text: root.title; wrap: word-wrap; }
+            if root.description != "": Muted { text: root.description; font-size: 12px; }
+        }
+        @children
+    }
+}
+
+// Text link for actions that leave the app (the browser). Keyboard: Tab, then Enter or Space.
+component Link inherits FocusScope {
+    in property <string> text;
+    callback clicked();
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-action-default => { root.clicked(); }
+    key-pressed(event) => {
+        if (event.text == Key.Return || event.text == " ") {
+            root.clicked();
+            return accept;
+        }
+        return reject;
+    }
+    HorizontalLayout {
+        Text {
+            text: root.text;
+            color: Palette.accent-background;
+            vertical-alignment: center;
+        }
+    }
+    Rectangle {
+        x: -3px;
+        y: -2px;
+        width: parent.width + 6px;
+        height: parent.height + 4px;
+        border-radius: 3px;
+        border-width: root.has-focus ? 2px : 0px;
+        border-color: Palette.foreground;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
 }
 
 component SettingsPage inherits ScrollView {
     VerticalLayout {
         alignment: start;
         padding: 24px;
-        spacing: 12px;
+        spacing: 6px;
         Section { text: @tr("General"); }
-        Switch {
-            text: @tr("Scan when PurgeKit starts");
-            checked: App.scan-on-launch;
-            toggled => { App.set-scan-on-launch(self.checked); }
+        SettingsCard {
+            title: @tr("Scan when PurgeKit starts");
+            description: @tr("Off by default. PurgeKit never removes anything until you select Clean.");
+            Switch {
+                accessible-label: @tr("Scan when PurgeKit starts");
+                checked: App.scan-on-launch;
+                toggled => { App.set-scan-on-launch(self.checked); }
+            }
         }
-        Switch {
-            text: @tr("Show advanced items");
-            checked: App.show-advanced;
-            toggled => { App.set-show-advanced(self.checked); }
+        SettingsCard {
+            title: @tr("Show advanced items");
+            description: @tr("Advanced items are system files. They are never selected for you, and removing some of them asks for administrator permission.");
+            Switch {
+                accessible-label: @tr("Show advanced items");
+                checked: App.show-advanced;
+                toggled => { App.set-show-advanced(self.checked); }
+            }
         }
-        Muted { text: @tr("Advanced items are system files. They are never selected for you, and removing some of them asks for administrator permission."); font-size: 12px; }
 
-        Section { text: @tr("Exclusions"); }
-        if App.exclusions.length == 0: Muted { text: @tr("No exclusions. In Review, right-click an item and choose Exclude to stop suggesting it."); }
-        for e[i] in App.exclusions: HorizontalLayout {
-            spacing: 10px;
-            Text { text: e.text; vertical-alignment: center; horizontal-stretch: 1; overflow: elide; }
+        VerticalLayout { padding-top: 18px; Section { text: @tr("Exclusions"); } }
+        if App.exclusions.length == 0: SettingsCard {
+            description: @tr("No exclusions. In Review, right-click an item and choose Exclude to stop suggesting it.");
+        }
+        for e[i] in App.exclusions: SettingsCard {
+            title: e.text;
             Button {
                 text: @tr("Remove");
                 clicked => { App.remove-exclusion(i); }
             }
         }
 
-        Section { text: @tr("History"); }
-        if App.history.length == 0: Muted { text: @tr("No cleans yet."); }
-        for h in App.history: Muted { text: h.text; font-size: 13px; }
+        VerticalLayout { padding-top: 18px; Section { text: @tr("History"); } }
+        SettingsCard {
+            if App.history.length == 0: Muted { text: @tr("No cleans yet."); horizontal-stretch: 1; }
+            if App.history.length > 0: VerticalLayout {
+                spacing: 4px;
+                horizontal-stretch: 1;
+                for h in App.history: Muted { text: h.text; font-size: 12px; }
+            }
+        }
 
-        Section { text: @tr("Privacy"); }
-        Muted { text: @tr("This version of PurgeKit contains no networking code. It never connects to the internet and sends no data. Settings, exclusions, history and logs stay on this PC in %LOCALAPPDATA%\\PurgeKit."); }
+        VerticalLayout { padding-top: 18px; Section { text: @tr("Privacy"); } }
+        SettingsCard {
+            title: @tr("No networking code");
+            description: @tr("This version of PurgeKit never connects to the internet and sends no data. Settings, exclusions, history and logs stay on this PC in %LOCALAPPDATA%\\PurgeKit.");
+        }
 
-        Section { text: @tr("About"); }
-        Muted { text: App.about; }
-        HorizontalLayout {
-            spacing: 10px;
-            alignment: start;
+        VerticalLayout { padding-top: 18px; Section { text: @tr("About"); } }
+        SettingsCard {
+            title: App.about;
+            Link {
+                text: @tr("Check for updates (opens your browser)");
+                clicked => { App.check-updates(); }
+            }
+        }
+        SettingsCard {
+            title: @tr("Diagnostics");
+            description: App.diagnostics-status != "" ? App.diagnostics-status : @tr("Saves logs, settings, exclusions and history to a zip file for a bug report. Logs never contain your user name.");
             Button {
                 text: @tr("Export diagnostics");
                 clicked => { App.export-diagnostics(); }
             }
-            Button {
-                text: @tr("Check for updates");
-                clicked => { App.check-updates(); }
-            }
         }
-        if App.diagnostics-status != "": Muted { text: App.diagnostics-status; font-size: 12px; }
     }
 }
 
