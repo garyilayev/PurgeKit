@@ -1,0 +1,14 @@
+[rule]
+id = "windows.crash_dumps"
+display_name = "Crash dumps"
+category = "windows"
+root = "{LocalAppData}/CrashDumps"
+include = ["*.dmp"]
+detect = "root_exists"
+target = "files"
+tier = "safe"
+elevation = "none"
+regenerates = false
+what = "Memory snapshots that Windows saved when an app crashed."
+why_safe = "Only developers use these files to find the cause of a crash. Apps do not need them to run."
+after_effects = "You cannot send these old crash reports to a developer any more."

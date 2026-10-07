@@ -1,0 +1,27 @@
+# Fixture for edge.cache. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE Default/Cache/Cache_Data/f_000001
+DELETE Default/Cache/Cache_Data/index
+DELETE Default/Code Cache/js/index
+DELETE Default/Code Cache/wasm/abc_0
+DELETE Profile 1/GPUCache/data_0
+DELETE Profile 12/Cache/Cache_Data/data_1
+KEEP Default/Cookies
+KEEP Default/Cookies-journal
+KEEP Default/Login Data
+KEEP Default/Login Data For Account
+KEEP Default/Bookmarks
+KEEP Default/Bookmarks.bak
+KEEP Default/History
+KEEP Default/Web Data
+KEEP Default/Preferences
+KEEP Default/Sessions/Session_1
+KEEP Default/Local Storage/leveldb/000003.log
+KEEP Default/IndexedDB/https_example.com_0.indexeddb.leveldb/000003.log
+KEEP Default/Extensions/abc/1.0/manifest.json
+KEEP Default/Service Worker/CacheStorage/abc/index
+KEEP Local State
+KEEP Cache/f_000001
+KEEP a/b/Cache/f_000001
+KEEP Default/Network/Cookies
+KEEP Default/Cache

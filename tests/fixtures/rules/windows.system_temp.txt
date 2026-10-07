@@ -1,0 +1,17 @@
+# Fixture for windows.system_temp. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE old.tmp
+DELETE ~DF1234.tmp
+DELETE setup-logs/install.log
+DELETE a/b/c/d/e.bin
+DELETE age=25h just-old-enough.tmp
+KEEP age=1h fresh.tmp
+KEEP age=23h a/b/still-fresh.bin
+KEEP Login Data
+KEEP chrome_xyz/Default/Login Data
+KEEP copy/Bookmarks
+KEEP export/logins.json
+KEEP Vault.kdbx
+KEEP backups/old.kdb
+KEEP x/Microsoft/Protect/key
+KEEP OLDFIL~1.TMP

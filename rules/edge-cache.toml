@@ -1,0 +1,15 @@
+[rule]
+id = "edge.cache"
+display_name = "Edge cache"
+category = "browsers"
+template = "chromium-cache"
+profile = "*"
+root = "{LocalAppData}/Microsoft/Edge/User Data"
+detect = "root_exists"
+process_deps = ["msedge.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+what = "Temporary website files saved by Edge."
+why_safe = "Edge downloads them again automatically when needed."
+after_effects = "Some sites may load a little slower the first time."

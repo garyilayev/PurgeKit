@@ -1,0 +1,15 @@
+[rule]
+id = "teams.cache"
+display_name = "Microsoft Teams (classic) cache"
+category = "apps"
+template = "chromium-cache"
+profile = "."
+root = "{RoamingAppData}/Microsoft/Teams"
+detect = "root_exists"
+process_deps = ["teams.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+what = "Temporary web files that Microsoft Teams (classic) saved for its built-in browser view."
+why_safe = "Microsoft Teams (classic) downloads or rebuilds these files automatically when needed. Your messages, settings and sign-in are in different folders."
+after_effects = "Microsoft Teams (classic) may start or load content a little slower the first time."

@@ -1,0 +1,13 @@
+# Fixture for firefox.cache. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE abcd1234.default-release/cache2/entries/0A1B2C
+DELETE abcd1234.default-release/cache2/index
+DELETE abcd1234.default-release/startupCache/startupCache.8.little
+DELETE abcd1234.default-release/thumbnails/abc.png
+KEEP abcd1234.default-release/places.sqlite
+KEEP abcd1234.default-release/logins.json
+KEEP abcd1234.default-release/key4.db
+KEEP abcd1234.default-release/cookies.sqlite
+KEEP abcd1234.default-release/storage/default/x/idb/1.sqlite
+KEEP cache2/entries/0A1B2C
+KEEP a/b/cache2/entries/x

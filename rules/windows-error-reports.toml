@@ -1,0 +1,14 @@
+[rule]
+id = "windows.error_reports"
+display_name = "Windows error reports"
+category = "windows"
+root = "{LocalAppData}/Microsoft/Windows/WER"
+include = ["ReportArchive/**", "ReportQueue/**"]
+detect = "root_exists"
+target = "files"
+tier = "safe"
+elevation = "none"
+regenerates = false
+what = "Problem reports that Windows Error Reporting saved or queued for sending."
+why_safe = "Windows keeps these reports only for diagnosis. Apps and Windows do not need them to run."
+after_effects = "Old problem reports no longer appear in Reliability Monitor."

@@ -1,0 +1,15 @@
+[rule]
+id = "firefox.cache"
+display_name = "Firefox cache"
+category = "browsers"
+root = "{LocalAppData}/Mozilla/Firefox/Profiles"
+include = ["*/cache2/**", "*/startupCache/**", "*/thumbnails/**"]
+detect = "root_exists"
+process_deps = ["firefox.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+regenerates = true
+what = "Temporary website files saved by Firefox."
+why_safe = "Firefox downloads them again automatically when needed. Your bookmarks, passwords and history are in a different folder."
+after_effects = "Some sites may load a little slower the first time."

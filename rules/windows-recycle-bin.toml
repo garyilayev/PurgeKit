@@ -1,0 +1,13 @@
+[rule]
+id = "windows.recycle_bin"
+display_name = "Recycle Bin"
+category = "windows"
+mechanism = "recycle_bin"
+detect = "always"
+target = "files"
+tier = "review"
+elevation = "none"
+regenerates = false
+what = "Files and folders that you deleted and that are still in the Recycle Bin."
+why_safe = "You deleted these items before. PurgeKit does not select them unless you tell it to."
+after_effects = "You cannot restore these items any more. Emptying the Recycle Bin is permanent."

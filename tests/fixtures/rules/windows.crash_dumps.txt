@@ -1,0 +1,7 @@
+# Fixture for windows.crash_dumps. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE app.exe.1234.dmp
+DELETE CHROME.EXE.99.DMP
+KEEP notes.txt
+KEEP sub/app.exe.1234.dmp
+KEEP app.dmp.txt

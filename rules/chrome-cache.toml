@@ -1,0 +1,15 @@
+[rule]
+id = "chrome.cache"
+display_name = "Chrome cache"
+category = "browsers"
+template = "chromium-cache"
+profile = "*"
+root = "{LocalAppData}/Google/Chrome/User Data"
+detect = "root_exists"
+process_deps = ["chrome.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+what = "Temporary website files saved by Chrome."
+why_safe = "Chrome downloads them again automatically when needed."
+after_effects = "Some sites may load a little slower the first time."

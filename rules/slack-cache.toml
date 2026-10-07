@@ -1,0 +1,15 @@
+[rule]
+id = "slack.cache"
+display_name = "Slack cache"
+category = "apps"
+template = "chromium-cache"
+profile = "."
+root = "{RoamingAppData}/Slack"
+detect = "root_exists"
+process_deps = ["slack.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+what = "Temporary web files that Slack saved for its built-in browser view."
+why_safe = "Slack downloads or rebuilds these files automatically when needed. Your messages, settings and sign-in are in different folders."
+after_effects = "Slack may start or load content a little slower the first time."

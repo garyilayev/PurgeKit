@@ -1,0 +1,16 @@
+# Fixture for cursor.cache. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE Cache/Cache_Data/f_000001
+DELETE Code Cache/js/index
+DELETE GPUCache/data_0
+KEEP Cookies
+KEEP Local Storage/leveldb/000003.log
+KEEP IndexedDB/https_app.example.com_0.indexeddb.leveldb/000003.log
+KEEP Sessions/Session_1
+KEEP Session Storage/000003.log
+KEEP settings.json
+KEEP Preferences
+KEEP Local State
+KEEP User/settings.json
+KEEP Default/Cache/f_000001
+KEEP Partitions/x/Cache/f_000001

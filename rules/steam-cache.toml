@@ -1,0 +1,15 @@
+[rule]
+id = "steam.web_cache"
+display_name = "Steam web cache"
+category = "apps"
+template = "chromium-cache"
+profile = "."
+root = "{LocalAppData}/Steam/htmlcache"
+detect = "root_exists"
+process_deps = ["steamwebhelper.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+what = "Temporary web files that Steam saved for its built-in browser view."
+why_safe = "Steam downloads or rebuilds these files automatically when needed. Your messages, settings and sign-in are in different folders."
+after_effects = "Steam may start or load content a little slower the first time."

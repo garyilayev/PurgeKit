@@ -1,0 +1,14 @@
+[rule]
+id = "windows.thumbnail_cache"
+display_name = "Thumbnail cache"
+category = "windows"
+root = "{LocalAppData}/Microsoft/Windows/Explorer"
+include = ["thumbcache_*.db"]
+detect = "root_exists"
+target = "files"
+tier = "safe"
+elevation = "none"
+regenerates = true
+what = "Small preview pictures that File Explorer saved for your files and folders."
+why_safe = "File Explorer makes the previews again when it needs them. Files that Explorer is using now are skipped."
+after_effects = "Folders with many pictures can show previews a little slower the first time."

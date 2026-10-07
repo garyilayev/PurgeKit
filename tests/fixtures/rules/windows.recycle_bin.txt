@@ -1,0 +1,5 @@
+# Fixture for windows.recycle_bin. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+# The Recycle Bin uses the shell API, not path matching: no path ever matches.
+KEEP $RECYCLE.BIN/S-1-5-21/$R123.txt
+KEEP anything

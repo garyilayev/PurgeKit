@@ -1,0 +1,15 @@
+[rule]
+id = "vscode.cache"
+display_name = "Visual Studio Code cache"
+category = "apps"
+template = "chromium-cache"
+profile = "."
+root = "{RoamingAppData}/Code"
+detect = "root_exists"
+process_deps = ["code.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+what = "Temporary web files that Visual Studio Code saved for its built-in browser view."
+why_safe = "Visual Studio Code downloads or rebuilds these files automatically when needed. Your messages, settings and sign-in are in different folders."
+after_effects = "Visual Studio Code may start or load content a little slower the first time."

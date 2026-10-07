@@ -1,0 +1,11 @@
+# Fixture for spotify.cache. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE Browser/Cache/Cache_Data/f_000001
+DELETE Browser/Code Cache/js/index
+DELETE Browser/GPUCache/data_0
+KEEP Storage/abc/def.file
+KEEP Data/abc.file
+KEEP Users/x-user/offline.bnk
+KEEP prefs
+KEEP Browser/Cookies
+KEEP Browser/Local Storage/leveldb/000003.log

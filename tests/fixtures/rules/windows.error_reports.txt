@@ -1,0 +1,7 @@
+# Fixture for windows.error_reports. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE ReportArchive/AppCrash_x/Report.wer
+DELETE ReportQueue/AppHang_y/memory.hdmp
+KEEP Temp/x.tmp
+KEEP ERC/statecache.lock
+KEEP ReportArchiveExtra/x

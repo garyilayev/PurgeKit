@@ -1,0 +1,15 @@
+[rule]
+id = "cursor.cache"
+display_name = "Cursor cache"
+category = "apps"
+template = "chromium-cache"
+profile = "."
+root = "{RoamingAppData}/Cursor"
+detect = "root_exists"
+process_deps = ["cursor.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+what = "Temporary web files that Cursor saved for its built-in browser view."
+why_safe = "Cursor downloads or rebuilds these files automatically when needed. Your messages, settings and sign-in are in different folders."
+after_effects = "Cursor may start or load content a little slower the first time."

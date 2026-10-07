@@ -1,0 +1,17 @@
+# Only the embedded browser caches. Spotify's Storage folder can hold offline
+# downloads, which are not junk, so it is deliberately not matched.
+[rule]
+id = "spotify.cache"
+display_name = "Spotify cache"
+category = "apps"
+root = "{LocalAppData}/Spotify"
+include = ["Browser/Cache/**", "Browser/Code Cache/**", "Browser/GPUCache/**"]
+detect = "root_exists"
+process_deps = ["spotify.exe"]
+target = "files"
+tier = "safe"
+elevation = "none"
+regenerates = true
+what = "Temporary web files that Spotify saved for its built-in browser view."
+why_safe = "Spotify downloads these files again automatically when needed. Your offline downloads and settings are not touched."
+after_effects = "Spotify may load pages a little slower the first time."

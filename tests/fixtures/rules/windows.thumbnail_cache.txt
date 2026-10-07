@@ -1,0 +1,7 @@
+# Fixture for windows.thumbnail_cache. Each line: DELETE|KEEP [age=<age>] <root-relative path>.
+# Default age is 365d. The test fails if a KEEP path matches or a DELETE path does not.
+DELETE thumbcache_256.db
+DELETE thumbcache_idx.db
+KEEP iconcache_16.db
+KEEP ExplorerStartupLog.etl
+KEEP sub/thumbcache_256.db
