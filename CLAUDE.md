@@ -111,7 +111,8 @@ Not done / open:
 - Canary VM and protected-data release gates (process, not code).
 - Performance on the reference machine: cold launch (one 827 ms cold sample locally; warm ~310 ms), 200k-file cold scan, HDD, peak RAM. CI benches do not yet fail on >10% regressions (no stored baseline).
 - Screen-reader pass on real assistive tech; full keyboard audit.
-- Open questions from the spec: open-source the rules, Slint license confirmation, Recycle Bin items >30 days as SAFE.
+- Open questions from the spec: open-source the rules.
+- Recycle Bin items >30 days as SAFE: decided as an opt-in setting (off by default); planned for 0.2, not implemented.
 
 ## Commit Rules
 
