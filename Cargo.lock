@@ -6113,6 +6113,7 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "object",
+ "serde_json",
 ]
 
 [[package]]

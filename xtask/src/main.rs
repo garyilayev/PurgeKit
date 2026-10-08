@@ -1,9 +1,15 @@
-//! Dev tasks. `cargo run -p xtask -- check-imports [profile]`
+//! Dev tasks.
 //!
-//! Release gate: neither binary may import a networking DLL. This turns "no
-//! networking code" from a promise into a verifiable claim.
+//! - `cargo run -p xtask -- check-imports [profile]`: release gate, neither
+//!   binary may import a networking DLL. This turns "no networking code" from
+//!   a promise into a verifiable claim.
+//! - `cargo run -p xtask -- bench-check [--baseline F] [--save F] [--threshold PCT]`:
+//!   fails when a benchmark regressed beyond the threshold against a stored
+//!   baseline (see `bench.rs`).
 
 #![forbid(unsafe_code)]
+
+mod bench;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -113,8 +119,23 @@ fn main() -> ExitCode {
         Some("check-imports") => {
             check_imports(args.get(1).map(String::as_str).unwrap_or("release"))
         }
+        Some("bench-check") => {
+            let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+            let result = bench::parse_args(&args[1..], &workspace).and_then(|a| bench::run(&a));
+            match result {
+                Ok(true) => ExitCode::SUCCESS,
+                Ok(false) => ExitCode::FAILURE,
+                Err(e) => {
+                    eprintln!("bench-check: {e}");
+                    ExitCode::from(2)
+                }
+            }
+        }
         _ => {
-            eprintln!("usage: cargo run -p xtask -- check-imports [release|debug]");
+            eprintln!(
+                "usage: cargo run -p xtask -- check-imports [release|debug]
+                        cargo run -p xtask -- bench-check [--baseline FILE] [--save FILE]                  [--threshold PCT] [--criterion-dir DIR]"
+            );
             ExitCode::from(2)
         }
     }
