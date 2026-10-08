@@ -57,6 +57,7 @@ crates/purgekit-engine   scanner, arena result tree + selection, CleanupPlan, cl
 crates/purgekit-win      every Win32/NT call; the ONLY crate allowed to use `unsafe`. Implements FsBackend.
 apps/purgekit            Slint UI + controller (runs asInvoker).
 apps/purgekit-helper     elevated, no UI; rule IDs in over the command line, results back over a user-only named pipe.
+apps/winres.rs           shared by both build scripts: icon (ui/purgekit.ico) + VERSIONINFO from the Cargo version.
 rules/*.toml             one file per cleaner; templates in rules/templates.toml.
 ui/*.slint               Slint UI files.
 tests/fixtures/rules/    one `<rule id>.txt` manifest per rule: `DELETE|KEEP [age=24h] <root-relative path>`.
@@ -64,8 +65,11 @@ xtask/                   dev tasks (`check-imports`, `bench-check`).
 fuzz/                    cargo-fuzz targets for the matcher (`rel_path`, `glob`); own workspace, nightly, Linux CI only.
 tools/canary/            canary VM release gate: create VM, seed fixtures + traps, manifest, compare (guest-side PowerShell).
 tools/msix/              MSIX packaging spike: manifest template, build + test-sign script, test matrix.
+tools/installer/         Inno Setup installer (purgekit.iss) + build.ps1; per-machine into Program Files.
+tools/signpath/          SignPath artifact configuration (paste into the SignPath project).
 deny.toml                cargo-deny: networking-crate bans, licenses, advisories.
-.github/workflows/ci.yml fmt, clippy, tests (incl. real-NTFS tests), cargo deny, release import check, fuzz, bench gate.
+.github/workflows/ci.yml fmt, clippy, tests (incl. real-NTFS tests), cargo deny, release import check, installer compile, fuzz, bench gate.
+.github/workflows/release.yml  on tag vX.Y.Z: CI gates, SignPath-sign binaries, installer, sign installer, verify, GitHub release.
 env.ps1                  dev shell setup for the local GNU toolchain (see Toolchain).
 ```
 
@@ -115,8 +119,7 @@ env.ps1                  dev shell setup for the local GNU toolchain (see Toolch
 Done: all four crates, both binaries, 16 rules with fixtures, protected deny-list at all four points, handle-based delete, helper + pipe + UAC, Home/Review/Space/Settings UI, exclusions, history, logs (5×5 MB), diagnostics zip, no-network checks, benches with a >10% regression gate (`xtask bench-check`, baseline from main via the Actions cache), matcher fuzzing (`fuzz/`, CI on Linux), launch timing, CI.
 
 Not done / open:
-- Packaging spike (MSIX vs signed MSI): scripts and test matrix in `tools/msix/`; not run yet (needs the Windows SDK signing tools and the canary VM). Code signing. Uninstall prompt for `%LOCALAPPDATA%\PurgeKit`.
-- **Spec conflict (flag, not decided):** MSIX has no uninstall UI, so "uninstall asks before deleting `%LOCALAPPDATA%\PurgeKit`" cannot be met with MSIX. Store policy 10.2.9 also allows a signed MSI in the Store.
+- Distribution (decided 2026-10-09): MIT open source, signed Inno Setup installer on GitHub releases, signing via the SignPath Foundation. Built: installer, `release.yml`, SignPath config. Pending: SignPath Foundation approval and project setup (secret `SIGNPATH_API_TOKEN`, variable `SIGNPATH_ORGANIZATION_ID`); until then a tag push fails at signing and publishes nothing. The installer has not been run on a clean machine yet. MSIX/Store stays open for later (`tools/msix/`; MSIX has no uninstall UI for the data prompt).
 - Canary VM and protected-data release gates: scripts ready in `tools/canary/`; the VM (Hyper-V, on drive E:) is not built yet. `noise.txt` needs a control run.
 - Performance on the reference machine: cold launch, 200k-file cold scan, HDD, peak RAM. Warm launch locally ~240 ms; ~150 ms of it is the femtovg OpenGL window/context, which dominates cold starts (827 ms sample). `SLINT_BACKEND=winit-software` paints the first frame in ~100–120 ms (measured from outside) and renders Home/Space/Settings correctly; not adopted yet (needs Review-list scroll check and a decision). The bench gate and fuzz CI jobs have not run on GitHub yet.
 - Screen-reader pass on real assistive tech; full keyboard audit.
