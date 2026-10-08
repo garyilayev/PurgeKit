@@ -32,8 +32,7 @@ cargo build --release -p purgekit -p purgekit-helper
 cargo test --workspace
 ```
 
-See `CLAUDE.md` for the architecture, safety invariants and toolchain notes,
-and `PurgeKit-Product-Spec-v1.0.md` for product decisions.
+See `CLAUDE.md` for the architecture, safety invariants and toolchain notes.
 
 ## License
 
