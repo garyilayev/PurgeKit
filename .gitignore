@@ -4,3 +4,6 @@
 
 # Product spec stays local.
 PurgeKit-Product-Spec-v1.0.md
+
+# MSIX spike output (contains the test signing key).
+/tools/msix/out/

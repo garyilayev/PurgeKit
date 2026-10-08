@@ -1,0 +1,8 @@
+# Changes outside the cleaned areas that are NOT a failure. One regex per
+# line, case-insensitive, matched against the full path. Every line must be
+# reviewed: start from noise-suggested.txt of a control run (no clean), and
+# copy only what Windows itself changes. Never add a line that covers a user
+# folder (Documents, Desktop, browser profiles outside their caches).
+
+# PurgeKit's own settings, history and logs.
+\\AppData\\Local\\PurgeKit\\

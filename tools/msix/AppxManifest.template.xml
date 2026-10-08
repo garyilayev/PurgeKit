@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX packaging spike (spec: "Distribution and updates"). Not a release manifest.
+  Build-Msix.ps1 fills the {{...}} placeholders. The "unvirtualized" variant turns
+  off AppData write virtualization; that needs the restricted capability
+  unvirtualizedResources, which the Store must approve.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  IgnorableNamespaces="uap rescap desktop6">
+
+  <Identity Name="PurgeKit.Spike" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>PurgeKit (packaging spike)</DisplayName>
+    <PublisherDisplayName>PurgeKit</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+{{VIRTUALIZATION}}
+  </Properties>
+
+  <Dependencies>
+    <!-- Windows 10 22H2 is the oldest supported build. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19045.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="PurgeKit" Executable="purgekit.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="PurgeKit (spike)"
+        Description="PurgeKit packaging spike"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <!-- Lets the packaged app start purgekit-helper.exe elevated (risk 2). -->
+    <rescap:Capability Name="allowElevation" />
+{{EXTRA_CAPABILITIES}}
+  </Capabilities>
+</Package>

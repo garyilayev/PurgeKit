@@ -1,0 +1,27 @@
+# Where a canary clean may remove files. One regex per line, case-insensitive,
+# matched against the full path. Tokens: %LOCALAPPDATA% %APPDATA% %TEMP%
+# %WINDIR% %SYSTEMDRIVE% (replaced with the escaped real paths).
+#
+# Written by hand from rules/*.toml on purpose: it is a second opinion that
+# does not use the PurgeKit matcher. A removal inside a rule root that no line
+# here allows is a FAIL. Update this file only together with a rule change.
+
+# Chromium caches below each profile (chrome.cache, edge.cache).
+^%LOCALAPPDATA%\\Google\\Chrome\\User Data\\[^\\]+\\(Cache|Code Cache|GPUCache)\\
+^%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\[^\\]+\\(Cache|Code Cache|GPUCache)\\
+
+# Electron apps: caches directly below the app root.
+^%APPDATA%\\(Cursor|discord|Slack|Code|Microsoft\\Teams)\\(Cache|Code Cache|GPUCache)\\
+^%LOCALAPPDATA%\\Spotify\\Browser\\(Cache|Code Cache|GPUCache)\\
+^%LOCALAPPDATA%\\Steam\\htmlcache\\(Cache|Code Cache|GPUCache)\\
+
+# firefox.cache
+^%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\[^\\]+\\(cache2|startupCache|thumbnails)\\
+
+# Windows
+^%LOCALAPPDATA%\\CrashDumps\\[^\\]+\.dmp$
+^%LOCALAPPDATA%\\Microsoft\\Windows\\WER\\(ReportArchive|ReportQueue)\\
+^%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer\\thumbcache_[^\\]*\.db$
+^%TEMP%\\
+^%WINDIR%\\Temp\\
+^%SYSTEMDRIVE%\\\$Recycle\.Bin\\
