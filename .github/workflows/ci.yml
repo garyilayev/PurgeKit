@@ -40,6 +40,11 @@ jobs:
         run: cargo build --release -p purgekit -p purgekit-helper
       - name: Neither binary imports a networking DLL
         run: cargo run -p xtask -- check-imports release
+      # Compile check only. The installer is not uploaded: unsigned binaries
+      # are never published. release.yml signs and publishes.
+      - name: Installer compiles
+        shell: pwsh
+        run: tools/installer/build.ps1
 
   # Matcher fuzzing (spec "Testing and quality"). purgekit-rules runs on any
   # OS, so libFuzzer runs on Linux with nightly; each target gets a bounded
