@@ -1,0 +1,3 @@
+// Application icon for purgekit.exe and purgekit-helper.exe (Explorer, taskbar, UAC prompt).
+// The lowest icon ID is the one Windows shows for the file.
+1 ICON "purgekit.ico"

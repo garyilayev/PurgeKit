@@ -8,6 +8,11 @@ fn main() {
                 .requested_execution_level(ExecutionLevel::RequireAdministrator),
         )
         .expect("unable to embed manifest");
+        // Same icon as the app, so the UAC prompt shows PurgeKit's icon.
+        embed_resource::compile("../../ui/purgekit.rc", embed_resource::NONE)
+            .manifest_required()
+            .expect("unable to embed the app icon");
     }
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=../../ui/purgekit.ico");
 }

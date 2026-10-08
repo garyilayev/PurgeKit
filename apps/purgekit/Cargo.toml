@@ -24,3 +24,4 @@ purgekit-win.workspace = true
 [build-dependencies]
 slint-build.workspace = true
 embed-manifest = "1.5"
+embed-resource = "3"
