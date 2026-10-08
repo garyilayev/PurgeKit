@@ -16,6 +16,8 @@ mod view;
 
 #[cfg(windows)]
 mod controller;
+#[cfg(windows)]
+mod launch;
 
 slint::include_modules!();
 

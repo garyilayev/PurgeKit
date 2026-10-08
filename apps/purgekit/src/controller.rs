@@ -1,8 +1,10 @@
 //! Wires the UI to the engine.
 
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use purgekit_core::format::{format_bytes, format_count};
@@ -21,6 +23,7 @@ use purgekit_win::elevate::{LaunchError, PipeServer, launch_elevated, new_pipe_n
 use purgekit_win::shell::{format_date, format_date_time, set_clipboard_text};
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
+use crate::launch::{self, LaunchTimer};
 use crate::store::{HistoryEntry, Settings, Store};
 use crate::view::{self, Ctx, Explorer, Row};
 use crate::{
@@ -65,18 +68,22 @@ fn now_unix() -> u64 {
 }
 
 pub fn run() -> Result<(), slint::PlatformError> {
+    let mut timer = LaunchTimer::start(purgekit_win::process_age());
     let data_dir = WinFs
         .resolve(KnownFolder::LocalAppData)
         .unwrap_or_else(std::env::temp_dir)
         .join("PurgeKit");
+    timer.mark("data_dir");
     crate::logging::init(data_dir.join("logs"));
     tracing::info!(version = APP_VERSION, rules = %builtin().version, "PurgeKit starting");
+    timer.mark("logging");
 
     let store = Store::new(data_dir);
     let mut notices = Vec::new();
     let settings = store.load_settings(&mut notices);
     let exclusions = store.load_exclusions(&mut notices);
     let history = store.load_history(&mut notices);
+    timer.mark("store");
     let model: Shared = Arc::new(Mutex::new(Model_ {
         store,
         settings,
@@ -90,9 +97,11 @@ pub fn run() -> Result<(), slint::PlatformError> {
     }));
 
     let ui = AppWindow::new()?;
+    timer.mark("window_new");
     let app = ui.global::<App>();
     app.set_rows(ModelRc::from(Rc::new(VecModel::<TreeRow>::default())));
     refresh_all(&ui, &mut model.lock().unwrap());
+    timer.mark("refresh");
 
     {
         let (m, w) = (model.clone(), ui.as_weak());
@@ -348,7 +357,54 @@ pub fn run() -> Result<(), slint::PlatformError> {
     if model.lock().unwrap().settings.scan_on_launch {
         start_scan(&model, &ui.as_weak());
     }
-    ui.run()
+    timer.mark("wiring");
+    let report = report_first_frame(&ui, timer);
+    let result = ui.run();
+    if let Some(h) = report.take() {
+        let _ = h.join();
+    }
+    result
+}
+
+/// Logs the launch breakdown once the first frame is rendered. The log write
+/// runs on a short-lived thread so the event loop does no file I/O.
+fn report_first_frame(ui: &AppWindow, timer: LaunchTimer) -> Rc<Cell<Option<JoinHandle<()>>>> {
+    let handle = Rc::new(Cell::new(None));
+    let finish = {
+        let handle = handle.clone();
+        let mut timer = Some(timer);
+        move |phase: &'static str| {
+            let Some(mut t) = timer.take() else {
+                return;
+            };
+            t.mark(phase);
+            let line = t.summary();
+            let mode = t.mode;
+            handle.set(Some(std::thread::spawn(move || {
+                tracing::info!(timings = %line, "launch to first frame");
+                if mode != launch::Mode::Log {
+                    eprintln!("launch: {line}");
+                }
+            })));
+            if mode == launch::Mode::PrintAndExit {
+                let _ = slint::quit_event_loop();
+            }
+        }
+    };
+    let finish = Rc::new(RefCell::new(finish));
+    let f = finish.clone();
+    let notifier = ui.window().set_rendering_notifier(move |state, _| {
+        if matches!(state, slint::RenderingState::AfterRendering) {
+            (f.borrow_mut())("first_frame");
+        }
+    });
+    if notifier.is_err() {
+        // Renderer without notifier support: fall back to the first event-loop turn.
+        slint::Timer::single_shot(Duration::ZERO, move || {
+            (finish.borrow_mut())("event_loop");
+        });
+    }
+    handle
 }
 
 // ------------------------------------------------------------------ scan
