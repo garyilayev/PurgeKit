@@ -41,6 +41,28 @@ jobs:
       - name: Neither binary imports a networking DLL
         run: cargo run -p xtask -- check-imports release
 
+  # Matcher fuzzing (spec "Testing and quality"). purgekit-rules runs on any
+  # OS, so libFuzzer runs on Linux with nightly; each target gets a bounded
+  # time. Invariant: a rule never authorizes a path outside its root.
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Fuzz rel_path (normalization + every built-in rule)
+        working-directory: fuzz
+        run: cargo fuzz run rel_path -- -max_total_time=90 -dict=${{ github.workspace }}/fuzz/matcher.dict -timeout=10
+      - name: Fuzz glob (pattern parser + DP matcher)
+        working-directory: fuzz
+        run: cargo fuzz run glob -- -max_total_time=90 -dict=${{ github.workspace }}/fuzz/matcher.dict -timeout=10
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts
+
   # Regression gate: medians are compared with a baseline from the latest
   # main run (restored from the Actions cache). A benchmark fails when it is
   # more than 10% slower AND its 95% CI does not overlap the baseline's; the
