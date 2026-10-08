@@ -5,10 +5,11 @@ use std::collections::HashSet;
 use std::mem::{size_of, zeroed};
 use std::path::{Path, PathBuf};
 use std::ptr::{null, null_mut};
+use std::time::Duration;
 
 use purgekit_core::{KnownFolder, SkipReason};
 use purgekit_engine::backend::{Skip, VolumeInfo};
-use windows_sys::Win32::Foundation::{HANDLE, S_OK};
+use windows_sys::Win32::Foundation::{FILETIME, HANDLE, S_OK};
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetLongPathNameW,
     GetVolumeInformationW, OPEN_EXISTING,
@@ -27,7 +28,8 @@ use windows_sys::Win32::System::Registry::{
     HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, RegCloseKey, RegOpenKeyExW,
 };
 use windows_sys::Win32::System::Threading::{
-    GetCurrentThread, SetThreadPriority, THREAD_MODE_BACKGROUND_BEGIN,
+    GetCurrentProcess, GetCurrentThread, GetProcessTimes, SetThreadPriority,
+    THREAD_MODE_BACKGROUND_BEGIN,
 };
 use windows_sys::Win32::UI::Shell::{
     FOLDERID_LocalAppData, FOLDERID_LocalAppDataLow, FOLDERID_ProgramData, FOLDERID_RoamingAppData,
@@ -294,4 +296,33 @@ pub fn enter_background_mode() {
     unsafe {
         SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
     }
+}
+
+/// Time since the OS created the current process. Used only for launch-time
+/// measurement, so it includes image and DLL loading before `main`.
+pub fn process_age() -> Option<Duration> {
+    let zero = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let (mut created, mut exit, mut kernel, mut user) = (zero, zero, zero, zero);
+    // SAFETY: the pseudo-handle needs no closing; out-pointers are valid locals.
+    let ok = unsafe {
+        GetProcessTimes(
+            GetCurrentProcess(),
+            &mut created,
+            &mut exit,
+            &mut kernel,
+            &mut user,
+        )
+    };
+    if ok == 0 {
+        return None;
+    }
+    // FILETIME: 100 ns ticks since 1601-01-01 UTC.
+    const UNIX_EPOCH_TICKS: u64 = 116_444_736_000_000_000;
+    let ticks = (u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime);
+    let since_unix = Duration::from_nanos(ticks.checked_sub(UNIX_EPOCH_TICKS)?.checked_mul(100)?);
+    let created = std::time::UNIX_EPOCH.checked_add(since_unix)?;
+    std::time::SystemTime::now().duration_since(created).ok()
 }

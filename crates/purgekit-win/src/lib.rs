@@ -22,7 +22,7 @@ use purgekit_engine::backend::{
     FsBackend, FsError, OpenedFile, RootInfo, Skip, VolumeInfo, WalkVisitor,
 };
 
-pub use sys::long_path;
+pub use sys::{long_path, process_age};
 
 /// The real Windows backend.
 #[derive(Debug, Default, Clone, Copy)]
