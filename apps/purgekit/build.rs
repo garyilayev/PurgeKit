@@ -1,6 +1,9 @@
 use embed_manifest::manifest::{DpiAwareness, ExecutionLevel, Setting};
 use embed_manifest::{embed_manifest, new_manifest};
 
+#[path = "../winres.rs"]
+mod winres;
+
 fn main() {
     // Runs as the invoking user. Only purgekit-helper.exe ever elevates.
     if std::env::var_os("CARGO_CFG_WINDOWS").is_some() {
@@ -11,12 +14,13 @@ fn main() {
                 .dpi_awareness(DpiAwareness::PerMonitorV2),
         )
         .expect("unable to embed manifest");
-        embed_resource::compile("../../ui/purgekit.rc", embed_resource::NONE)
-            .manifest_required()
-            .expect("unable to embed the app icon");
+        winres::embed(&winres::Exe {
+            description: "PurgeKit",
+            internal_name: "purgekit",
+            original_filename: "purgekit.exe",
+        });
     }
     let config = slint_build::CompilerConfiguration::new().with_style("fluent".into());
     slint_build::compile_with_config("../../ui/app.slint", config).expect("compile ui/app.slint");
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../../ui/purgekit.ico");
 }
