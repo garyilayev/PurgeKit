@@ -60,9 +60,12 @@ apps/purgekit-helper     elevated, no UI; rule IDs in over the command line, res
 rules/*.toml             one file per cleaner; templates in rules/templates.toml.
 ui/*.slint               Slint UI files.
 tests/fixtures/rules/    one `<rule id>.txt` manifest per rule: `DELETE|KEEP [age=24h] <root-relative path>`.
-xtask/                   dev tasks (`check-imports`).
+xtask/                   dev tasks (`check-imports`, `bench-check`).
+fuzz/                    cargo-fuzz targets for the matcher (`rel_path`, `glob`); own workspace, nightly, Linux CI only.
+tools/canary/            canary VM release gate: create VM, seed fixtures + traps, manifest, compare (guest-side PowerShell).
+tools/msix/              MSIX packaging spike: manifest template, build + test-sign script, test matrix.
 deny.toml                cargo-deny: networking-crate bans, licenses, advisories.
-.github/workflows/ci.yml fmt, clippy, tests (incl. real-NTFS tests), cargo deny, release import check, benches.
+.github/workflows/ci.yml fmt, clippy, tests (incl. real-NTFS tests), cargo deny, release import check, fuzz, bench gate.
 env.ps1                  dev shell setup for the local GNU toolchain (see Toolchain).
 ```
 
@@ -71,6 +74,11 @@ env.ps1                  dev shell setup for the local GNU toolchain (see Toolch
 - Engine tests run on `purgekit_engine::testing::MemFs` (dirs, files, links, cloud, read-only, hard links, locks). Real-NTFS behavior is tested in `crates/purgekit-win/tests/ntfs.rs` (junctions via `mklink /J`).
 - Test backends that use a temp dir as a root must expand 8.3 names with `purgekit_win::long_path` (as `WinFs::resolve` does). GitHub runners set `TEMP=C:\Users\RUNNER~1\...`; an unexpanded short name makes the protected check fail closed and the scan finds nothing. Reproduce locally by setting `TMP`/`TEMP` to the short path of a long-named folder.
 - The Slint event loop never touches the filesystem. Workers emit events to an aggregator that pushes one batched UI update per ~100 ms via `slint::invoke_from_event_loop`. No per-file events.
+  - `Store::save_*` only serialize; one `store-writer` thread writes, in call order. `Store::sync()` waits for it (exit and tests only, never on the event loop).
+  - Logging sends formatted lines to one `log-writer` thread; `logging::flush()` runs at exit, from the panic hook, and before the diagnostics export. The panic hook never logs the panic message (it can contain usernames).
+  - The volume list for the Space page is cached in the model (`Model_::volumes`) and read only on worker threads: at launch (`refresh_volumes`), after a scan and after a clean. `refresh_space` reads the cache.
+  - The diagnostics zip export runs on a worker thread.
+- Launch timing: every launch logs one INFO line with the phase breakdown from process creation. `PURGEKIT_LAUNCH_TIMING=1` also prints it to stderr; `=exit` prints it and quits after the first frame (for scripted samples). The embedded rules compile on a background thread during window creation.
 - Candidate identity is `(volume serial, 128-bit file ID)`. Recoverable size = allocated size; display size = logical size.
 - Deletion: walk `rel_path` component-by-component with handle-relative `NtCreateFile` + `FILE_OPEN_REPARSE_POINT`, verify file ID / attributes / link count / protected list / rule match on the final handle, then `FileDispositionInfoEx` with POSIX semantics on that same handle.
 - Known folders resolve via `SHGetKnownFolderPath`; temp via `GetTempPath2W` looked up at run time with `GetProcAddress` (fallback `GetTempPathW`), so the binary loads on older Windows 10. Resolved roots go through `GetLongPathNameW`: an 8.3 component anywhere makes the protected check fail closed. Never hardcode drive letters or `C:\Users`.
@@ -104,12 +112,13 @@ env.ps1                  dev shell setup for the local GNU toolchain (see Toolch
 
 ## Status (0.1)
 
-Done: all four crates, both binaries, 16 rules with fixtures, protected deny-list at all four points, handle-based delete, helper + pipe + UAC, Home/Review/Space/Settings UI, exclusions, history, logs (5×5 MB), diagnostics zip, no-network checks, benches, CI.
+Done: all four crates, both binaries, 16 rules with fixtures, protected deny-list at all four points, handle-based delete, helper + pipe + UAC, Home/Review/Space/Settings UI, exclusions, history, logs (5×5 MB), diagnostics zip, no-network checks, benches with a >10% regression gate (`xtask bench-check`, baseline from main via the Actions cache), matcher fuzzing (`fuzz/`, CI on Linux), launch timing, CI.
 
 Not done / open:
-- Packaging spike (MSIX vs signed MSI), code signing, uninstall prompt for `%LOCALAPPDATA%\PurgeKit`.
-- Canary VM and protected-data release gates (process, not code).
-- Performance on the reference machine: cold launch (one 827 ms cold sample locally; warm ~310 ms), 200k-file cold scan, HDD, peak RAM. CI benches do not yet fail on >10% regressions (no stored baseline).
+- Packaging spike (MSIX vs signed MSI): scripts and test matrix in `tools/msix/`; not run yet (needs the Windows SDK signing tools and the canary VM). Code signing. Uninstall prompt for `%LOCALAPPDATA%\PurgeKit`.
+- **Spec conflict (flag, not decided):** MSIX has no uninstall UI, so "uninstall asks before deleting `%LOCALAPPDATA%\PurgeKit`" cannot be met with MSIX. Store policy 10.2.9 also allows a signed MSI in the Store.
+- Canary VM and protected-data release gates: scripts ready in `tools/canary/`; the VM (Hyper-V, on drive E:) is not built yet. `noise.txt` needs a control run.
+- Performance on the reference machine: cold launch, 200k-file cold scan, HDD, peak RAM. Warm launch locally ~240 ms; ~150 ms of it is the femtovg OpenGL window/context, which dominates cold starts (827 ms sample). `SLINT_BACKEND=winit-software` paints the first frame in ~100–120 ms (measured from outside) and renders Home/Space/Settings correctly; not adopted yet (needs Review-list scroll check and a decision). The bench gate and fuzz CI jobs have not run on GitHub yet.
 - Screen-reader pass on real assistive tech; full keyboard audit.
 - Open questions from the spec: open-source the rules.
 - Recycle Bin items >30 days as SAFE: decided as an opt-in setting (off by default); planned for 0.2, not implemented.
@@ -156,6 +165,9 @@ cargo run -p xtask -- check-imports     # fails if a release binary imports netw
 cargo deny check                        # networking-crate bans, licenses, advisories
 cargo bench -p purgekit-engine          # selection toggle on a 100k-node tree (target < 16 ms)
 cargo bench -p purgekit-win             # walker vs jwalk; PURGEKIT_BENCH_FILES=200000 for the spec size
+cargo run -p xtask -- bench-check --baseline F --save F --threshold 10   # compare Criterion medians with a baseline
+cd fuzz && cargo +nightly fuzz run rel_path   # Linux/MSVC nightly only; `cargo check --no-default-features` type-checks on GNU
+$env:PURGEKIT_LAUNCH_TIMING='exit'; target\release\purgekit.exe 2> launch.txt   # one launch-time sample
 ```
 
 ## Conventions
