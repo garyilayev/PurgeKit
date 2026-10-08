@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use purgekit_core::format::{format_bytes, format_count};
 use purgekit_core::{FileTime, KnownFolder, SkipReason};
-use purgekit_engine::backend::FsBackend;
+use purgekit_engine::backend::{FsBackend, VolumeInfo};
 use purgekit_engine::events::ScanEvent;
 use purgekit_engine::helper::{APP_VERSION, HelperResponse, build_request};
 use purgekit_engine::tree::NodeKind;
@@ -52,6 +52,9 @@ struct Model_ {
     rows: Vec<Row>,
     cancel: Option<CancelToken>,
     notices: Vec<String>,
+    /// Fixed volumes for the Space page. Read on worker threads only (see
+    /// `refresh_volumes`), never on the event loop.
+    volumes: Vec<VolumeInfo>,
 }
 
 type Shared = Arc<Mutex<Model_>>;
@@ -100,6 +103,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
         rows: Vec::new(),
         cancel: None,
         notices,
+        volumes: Vec::new(),
     }));
 
     let ui = AppWindow::new()?;
@@ -107,6 +111,7 @@ pub fn run() -> Result<(), slint::PlatformError> {
     let app = ui.global::<App>();
     app.set_rows(ModelRc::from(Rc::new(VecModel::<TreeRow>::default())));
     refresh_all(&ui, &mut model.lock().unwrap());
+    refresh_volumes(&model, &ui.as_weak());
     timer.mark("refresh");
 
     {
@@ -323,28 +328,37 @@ pub fn run() -> Result<(), slint::PlatformError> {
     {
         let (m, w) = (model.clone(), ui.as_weak());
         app.on_export_diagnostics(move || {
-            let g = m.lock().unwrap();
-            let summary = diagnostics_summary(&g);
-            let ui = w.unwrap();
-            match crate::diagnostics::export(g.store.dir(), &summary) {
-                Ok(path) => {
-                    let name = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default();
-                    ui.global::<App>().set_diagnostics_status(s(format!(
-                        "Saved %LOCALAPPDATA%\\PurgeKit\\{name}"
-                    )));
-                    let _ = std::process::Command::new("explorer.exe")
-                        .arg(format!("/select,{}", path.display()))
-                        .spawn();
-                }
-                Err(e) => {
-                    tracing::error!(error = %e, "diagnostics export failed");
-                    ui.global::<App>()
-                        .set_diagnostics_status(s("Diagnostics could not be saved."));
-                }
-            }
+            let (summary, dir) = {
+                let g = m.lock().unwrap();
+                (diagnostics_summary(&g), g.store.dir().to_path_buf())
+            };
+            w.unwrap()
+                .global::<App>()
+                .set_diagnostics_status(s("Saving diagnostics…"));
+            // Zipping up to 25 MB of logs: off the event loop.
+            let w = w.clone();
+            std::thread::spawn(move || {
+                crate::logging::flush();
+                let status = match crate::diagnostics::export(&dir, &summary) {
+                    Ok(path) => {
+                        let name = path
+                            .file_name()
+                            .map(|n| n.to_string_lossy().into_owned())
+                            .unwrap_or_default();
+                        let _ = std::process::Command::new("explorer.exe")
+                            .arg(format!("/select,{}", path.display()))
+                            .spawn();
+                        format!("Saved %LOCALAPPDATA%\\PurgeKit\\{name}")
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "diagnostics export failed");
+                        "Diagnostics could not be saved.".to_string()
+                    }
+                };
+                let _ = w.upgrade_in_event_loop(move |ui| {
+                    ui.global::<App>().set_diagnostics_status(s(status));
+                });
+            });
         });
     }
     app.on_check_updates(|| {
@@ -369,7 +383,20 @@ pub fn run() -> Result<(), slint::PlatformError> {
     if let Some(h) = report.take() {
         let _ = h.join();
     }
+    // The event loop has ended: wait for queued saves and log lines.
+    model.lock().unwrap().store.sync();
+    crate::logging::flush();
     result
+}
+
+/// Reads the volume list on a worker thread, then redraws the Space page.
+fn refresh_volumes(m: &Shared, w: &slint::Weak<AppWindow>) {
+    let (m, w) = (m.clone(), w.clone());
+    std::thread::spawn(move || {
+        let v = WinFs.volumes();
+        m.lock().unwrap().volumes = v;
+        let _ = w.upgrade_in_event_loop(move |ui| refresh_space(&ui, &m.lock().unwrap()));
+    });
 }
 
 /// Logs the launch breakdown once the first frame is rendered. The log write
@@ -466,11 +493,13 @@ fn start_scan(m: &Shared, w: &slint::Weak<AppWindow>) {
             protected_skipped = result.diagnostics.protected_skipped,
             "scan finished"
         );
+        let volumes = WinFs.volumes();
         {
             let mut g = m.lock().unwrap();
             g.scan = Some(result);
             g.explorer = Explorer::default();
             g.cancel = None;
+            g.volumes = volumes;
         }
         let _ = w.upgrade_in_event_loop(move |ui| {
             ui.global::<App>().set_clean_state(state::RESULTS);
@@ -481,8 +510,7 @@ fn start_scan(m: &Shared, w: &slint::Weak<AppWindow>) {
 
 // ------------------------------------------------------------------ clean
 
-fn total_free() -> Option<u64> {
-    let v = WinFs.volumes();
+fn total_free(v: &[VolumeInfo]) -> Option<u64> {
     if v.is_empty() {
         None
     } else {
@@ -520,7 +548,7 @@ fn start_clean(m: &Shared, w: &slint::Weak<AppWindow>) {
     let (m, w) = (m.clone(), w.clone());
     std::thread::spawn(move || {
         let rules = builtin();
-        let free_before = total_free();
+        let free_before = total_free(&WinFs.volumes());
         let root_of = |r: RuleIdx| roots.iter().find(|(i, _)| *i == r).map(|(_, p)| p.clone());
         let last = Mutex::new(Instant::now() - Duration::from_secs(1));
         let w2 = w.clone();
@@ -624,7 +652,8 @@ fn start_clean(m: &Shared, w: &slint::Weak<AppWindow>) {
             }
         }
         // Measured, not estimated: the volume's actual free-space change.
-        if let (Some(b), Some(a)) = (free_before, total_free()) {
+        let volumes_after = WinFs.volumes();
+        if let (Some(b), Some(a)) = (free_before, total_free(&volumes_after)) {
             report.measured_freed = Some(a as i64 - b as i64);
         }
         tracing::info!(
@@ -660,6 +689,7 @@ fn start_clean(m: &Shared, w: &slint::Weak<AppWindow>) {
             g.store.save_history(&h);
             g.scan = None;
             g.cancel = None;
+            g.volumes = volumes_after;
         }
         let _ = w.upgrade_in_event_loop(move |ui| {
             show_report(&ui, &report);
@@ -1038,8 +1068,8 @@ fn refresh_settings(ui: &AppWindow, g: &Model_) {
 
 fn refresh_space(ui: &AppWindow, g: &Model_) {
     let app = ui.global::<App>();
-    let drives = WinFs.volumes();
-    let rows: Vec<DriveRow> = drives
+    let rows: Vec<DriveRow> = g
+        .volumes
         .iter()
         .map(|d| {
             let used = d.total.saturating_sub(d.free);

@@ -2,8 +2,12 @@
 //!
 //! Every file carries a `schema_version`. Writes are atomic (temp file +
 //! rename). A corrupt file is backed up, reset to defaults, and the user is told.
+//!
+//! `save_*` only serialize; one writer thread does the file I/O, in call
+//! order, so UI callbacks can save without touching the file system.
 
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 
 use purgekit_engine::{Exclusion, Exclusions};
 use serde::de::DeserializeOwned;
@@ -92,8 +96,20 @@ impl Versioned for HistoryFile {
     }
 }
 
+enum Job {
+    Write { name: &'static str, bytes: Vec<u8> },
+    Sync(mpsc::Sender<()>),
+}
+
 pub struct Store {
     dir: PathBuf,
+    writer: mpsc::Sender<Job>,
+}
+
+fn write_logged(dir: &Path, name: &str, bytes: &[u8]) {
+    if let Err(e) = write_atomic(&dir.join(name), bytes) {
+        tracing::error!(error = %e, file = name, "saving failed");
+    }
 }
 
 /// Writes `bytes` to `path` atomically.
@@ -106,7 +122,45 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 impl Store {
     pub fn new(dir: PathBuf) -> Self {
         let _ = std::fs::create_dir_all(&dir);
-        Store { dir }
+        let (writer, rx) = mpsc::channel::<Job>();
+        let wdir = dir.clone();
+        // If the thread cannot start, `rx` is dropped and `enqueue` writes inline.
+        let _ = std::thread::Builder::new()
+            .name("store-writer".into())
+            .spawn(move || {
+                for job in rx {
+                    match job {
+                        Job::Write { name, bytes } => write_logged(&wdir, name, &bytes),
+                        Job::Sync(ack) => {
+                            let _ = ack.send(());
+                        }
+                    }
+                }
+            });
+        Store { dir, writer }
+    }
+
+    /// Blocks until every save queued so far is on disk. Not for the event loop.
+    pub fn sync(&self) {
+        let (tx, rx) = mpsc::channel();
+        if self.writer.send(Job::Sync(tx)).is_ok() {
+            let _ = rx.recv();
+        }
+    }
+
+    fn enqueue<T: Serialize>(&self, name: &'static str, v: &T) {
+        let bytes = match serde_json::to_vec_pretty(v) {
+            Ok(b) => b,
+            Err(e) => {
+                tracing::error!(error = %e, file = name, "saving failed");
+                return;
+            }
+        };
+        if let Err(mpsc::SendError(Job::Write { name, bytes })) =
+            self.writer.send(Job::Write { name, bytes })
+        {
+            write_logged(&self.dir, name, &bytes);
+        }
     }
 
     pub fn dir(&self) -> &Path {
@@ -152,9 +206,7 @@ impl Store {
     }
 
     pub fn save_settings(&self, s: &Settings) {
-        if let Err(e) = self.save("settings.json", s) {
-            tracing::error!(error = %e, "saving settings failed");
-        }
+        self.enqueue("settings.json", s);
     }
 
     pub fn load_exclusions(&self, notices: &mut Vec<String>) -> Exclusions {
@@ -167,9 +219,7 @@ impl Store {
             schema_version: SCHEMA_VERSION,
             items: e.items.clone(),
         };
-        if let Err(e) = self.save("exclusions.json", &f) {
-            tracing::error!(error = %e, "saving exclusions failed");
-        }
+        self.enqueue("exclusions.json", &f);
     }
 
     pub fn load_history(&self, notices: &mut Vec<String>) -> Vec<HistoryEntry> {
@@ -183,9 +233,7 @@ impl Store {
             schema_version: SCHEMA_VERSION,
             entries: entries[start..].to_vec(),
         };
-        if let Err(e) = self.save("history.json", &f) {
-            tracing::error!(error = %e, "saving history failed");
-        }
+        self.enqueue("history.json", &f);
     }
 }
 
@@ -217,8 +265,26 @@ mod tests {
             ..Settings::default()
         };
         s.save_settings(&set);
+        s.sync();
         assert_eq!(s.load_settings(&mut n), set);
         assert!(n.is_empty());
+    }
+
+    #[test]
+    fn queued_saves_land_in_call_order() {
+        let s = Store::new(tmp());
+        for i in 0..50 {
+            let set = Settings {
+                show_advanced: i % 2 == 1,
+                scan_on_launch: i % 3 == 0,
+                ..Settings::default()
+            };
+            s.save_settings(&set);
+        }
+        s.sync();
+        let last = s.load_settings(&mut Vec::new());
+        assert!(last.show_advanced, "save 49 must win");
+        assert!(!last.scan_on_launch);
     }
 
     #[test]
@@ -254,6 +320,7 @@ mod tests {
             error_categories: vec![],
         };
         s.save_history(&vec![e; 600]);
+        s.sync();
         assert_eq!(s.load_history(&mut Vec::new()).len(), HISTORY_CAP);
     }
 }
