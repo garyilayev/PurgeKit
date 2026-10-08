@@ -41,18 +41,38 @@ jobs:
       - name: Neither binary imports a networking DLL
         run: cargo run -p xtask -- check-imports release
 
+  # Regression gate: medians are compared with a baseline from the latest
+  # main run (restored from the Actions cache). A benchmark fails when it is
+  # more than 10% slower AND its 95% CI does not overlap the baseline's; the
+  # toggle benchmarks must also stay under 16 ms. With no baseline (first run,
+  # cache evicted) the job passes and main saves one. Details: xtask/src/bench.rs.
   bench:
     runs-on: windows-latest
-    if: github.event_name == 'push'
     env:
       PURGEKIT_BENCH_FILES: "200000"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Restore main baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: bench-baseline
+          # The exact key never exists yet; restore-keys picks the newest main baseline.
+          key: bench-baseline-${{ runner.os }}-${{ github.sha }}
+          restore-keys: bench-baseline-${{ runner.os }}-
       - name: Benchmarks
         run: cargo bench -p purgekit-engine -p purgekit-win
+      - name: Compare with baseline (fails on > 10% regression)
+        run: cargo run -p xtask -- bench-check --baseline bench-baseline/baseline.json --save bench-baseline/baseline.json --threshold 10
+      - name: Save baseline (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: bench-baseline
+          key: bench-baseline-${{ runner.os }}-${{ github.sha }}
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: criterion
           path: target/criterion
