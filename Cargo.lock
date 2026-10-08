@@ -3743,7 +3743,7 @@ dependencies = [
 
 [[package]]
 name = "purgekit"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "crc32fast",
  "embed-manifest",
@@ -3762,7 +3762,7 @@ dependencies = [
 
 [[package]]
 name = "purgekit-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "proptest",
  "serde",
@@ -3771,7 +3771,7 @@ dependencies = [
 
 [[package]]
 name = "purgekit-engine"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "criterion",
  "proptest",
@@ -3786,7 +3786,7 @@ dependencies = [
 
 [[package]]
 name = "purgekit-helper"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "embed-manifest",
  "embed-resource",
@@ -3799,7 +3799,7 @@ dependencies = [
 
 [[package]]
 name = "purgekit-rules"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "proptest",
  "purgekit-core",
@@ -3809,7 +3809,7 @@ dependencies = [
 
 [[package]]
 name = "purgekit-win"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "criterion",
  "jwalk",
@@ -6156,7 +6156,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "object",
  "serde_json",
