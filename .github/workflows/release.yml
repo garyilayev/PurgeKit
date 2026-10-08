@@ -1,0 +1,123 @@
+name: Release
+
+# Push a tag `vX.Y.Z` that matches the workspace version in Cargo.toml.
+# Spec "Distribution": unsigned binaries are never published. Every step
+# fails closed: no signature, no release. 0.0.x and X.Y.Z-suffix versions
+# are marked as pre-releases.
+#
+# SignPath setup (SignPath Foundation, free for open source):
+#   secret   SIGNPATH_API_TOKEN        API token of a CI submitter user
+#   variable SIGNPATH_ORGANIZATION_ID  organization ID
+#   project slug `purgekit`, signing policy slug `release-signing`,
+#   artifact configuration: tools/signpath/artifact-configuration.xml
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Tag matches the Cargo version
+        id: version
+        shell: pwsh
+        run: |
+          $meta = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+          $version = ($meta.packages | Where-Object name -eq 'purgekit').version
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match Cargo version $version"
+          }
+          $pre = ($version -like '0.0.*') -or ($version -like '*-*')
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$($pre.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+
+      # Same gates as CI, on the exact commit that ships.
+      - name: Test
+        run: cargo test --workspace
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+      - name: Dependency bans, licenses, advisories
+        run: cargo deny check
+      - name: Release build
+        run: cargo build --release -p purgekit -p purgekit-helper
+      - name: Neither binary imports a networking DLL
+        run: cargo run -p xtask -- check-imports release
+
+      - name: Upload binaries for signing
+        id: upload-bins
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-binaries
+          path: |
+            target/release/purgekit.exe
+            target/release/purgekit-helper.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign binaries (SignPath)
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: purgekit
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-bins.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed/bin
+
+      - name: Build installer from the signed binaries
+        shell: pwsh
+        run: tools/installer/build.ps1 -BinDir signed/bin -OutputDir installer -Version ${{ steps.version.outputs.version }}
+
+      - name: Upload installer for signing
+        id: upload-setup
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer
+          path: installer/PurgeKit-Setup-${{ steps.version.outputs.version }}.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign installer (SignPath)
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: purgekit
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload-setup.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed/setup
+
+      - name: Every published file has a valid signature
+        shell: pwsh
+        run: |
+          $files = @('signed/bin/purgekit.exe', 'signed/bin/purgekit-helper.exe',
+                     "signed/setup/PurgeKit-Setup-${{ steps.version.outputs.version }}.exe")
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne 'Valid') { throw "$f signature: $($sig.Status) $($sig.StatusMessage)" }
+            "$f signed by $($sig.SignerCertificate.Subject)"
+          }
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $setup = "signed/setup/PurgeKit-Setup-$v.exe"
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          "$hash  PurgeKit-Setup-$v.exe" | Out-File -Encoding ascii SHA256SUMS.txt
+          $flags = @('--title', "PurgeKit $v", '--generate-notes', '--verify-tag')
+          if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $flags += '--prerelease' }
+          gh release create $env:GITHUB_REF_NAME $setup SHA256SUMS.txt @flags
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }

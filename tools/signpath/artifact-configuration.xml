@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration for the `purgekit` project (paste it into
+  the project's default artifact configuration on app.signpath.io).
+
+  release.yml submits two GitHub artifacts, each a zip:
+    1. unsigned-binaries: purgekit.exe + purgekit-helper.exe
+    2. unsigned-installer: PurgeKit-Setup-<version>.exe
+  Each listed .exe gets an Authenticode signature; product-name must match
+  the VERSIONINFO ProductName (apps/winres.rs, tools/installer/purgekit.iss).
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file-set>
+      <include path="purgekit.exe" min-matches="0" max-matches="1" product-name="PurgeKit" />
+      <include path="purgekit-helper.exe" min-matches="0" max-matches="1" product-name="PurgeKit" />
+      <include path="PurgeKit-Setup-*.exe" min-matches="0" max-matches="1" product-name="PurgeKit" />
+      <for-each>
+        <authenticode-sign />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>
