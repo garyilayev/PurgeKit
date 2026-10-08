@@ -1,0 +1,48 @@
+# cargo-fuzz targets for the rule matcher. Not a member of the main workspace
+# (it needs nightly and libFuzzer), so stable builds, `cargo deny` and the
+# release binaries are unaffected. Linux CI runs it; see .github/workflows/ci.yml.
+#
+#   cargo install cargo-fuzz
+#   cargo +nightly fuzz run rel_path -- -max_total_time=60
+#   cargo +nightly fuzz run glob -- -max_total_time=60
+
+[package]
+name = "purgekit-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[features]
+default = ["libfuzzer"]
+# Builds and links libFuzzer (C++). `cargo check --no-default-features`
+# type-checks the targets where libFuzzer does not build (Windows GNU).
+libfuzzer = ["libfuzzer-sys/link_libfuzzer"]
+
+[dependencies]
+libfuzzer-sys = { version = "0.4", default-features = false }
+purgekit-core = { path = "../crates/purgekit-core" }
+purgekit-rules = { path = "../crates/purgekit-rules" }
+
+# Own (empty) workspace: keeps this crate out of the root workspace.
+[workspace]
+
+[[bin]]
+name = "rel_path"
+path = "fuzz_targets/rel_path.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "glob"
+path = "fuzz_targets/glob.rs"
+test = false
+doc = false
+bench = false
+
+[profile.release]
+debug = 1

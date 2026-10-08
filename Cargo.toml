@@ -9,6 +9,8 @@ members = [
     "apps/purgekit-helper",
     "xtask",
 ]
+# cargo-fuzz crate: nightly-only, has its own workspace.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"
