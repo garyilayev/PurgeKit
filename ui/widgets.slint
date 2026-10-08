@@ -1,0 +1,242 @@
+// Fluent-style Button and Switch with a pointer (hand) cursor.
+// The std-widgets versions hard-code the default cursor on their inner TouchArea,
+// and an inner TouchArea's cursor always wins over a parent's, so they cannot be
+// wrapped. Visuals and keyboard behavior follow the Slint 1.18 Fluent widgets.
+
+import { Palette } from "std-widgets.slint";
+
+// Fluent colors that Palette does not expose.
+global FluentColors {
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    out property <brush> control-secondary: root.dark ? #FFFFFF14 : #F9F9F980;
+    out property <brush> control-tertiary: root.dark ? #FFFFFF08 : #F9F9F94D;
+    out property <brush> control-disabled: root.dark ? #FFFFFF0A : #F9F9F94D;
+    out property <brush> control-alt-secondary: root.dark ? #0000001A : #00000005;
+    out property <brush> control-alt-tertiary: root.dark ? #FFFFFF0A : #0000000F;
+    out property <brush> control-alt-quaternary: root.dark ? #FFFFFF12 : #00000017;
+    out property <brush> control-strong-stroke: root.dark ? #FFFFFF99 : #00000099;
+    out property <brush> control-strong-stroke-disabled: root.dark ? #FFFFFF29 : #00000038;
+    out property <brush> accent-disabled: root.dark ? #FFFFFF29 : #00000038;
+    out property <brush> accent-control-border: root.dark
+        ? @linear-gradient(180deg, #FFFFFF14 90.67%, #00000024 100%)
+        : @linear-gradient(180deg, #FFFFFF14 90.67%, #00000066 100%);
+    out property <brush> control-border: root.dark
+        ? @linear-gradient(180deg, #FFFFFF17 0%, #00000012 8.33%)
+        : @linear-gradient(180deg, #0000000F 90.58%, #00000029 100%);
+    out property <brush> circle-border: root.dark
+        ? @linear-gradient(180deg, #FFFFFF17 0%, #FFFFFF12 100%)
+        : @linear-gradient(180deg, #0000000F 0%, #00000029 100%);
+    out property <brush> text-secondary: root.dark ? #FFFFFFC9 : #00000099;
+    out property <brush> text-disabled: root.dark ? #FFFFFF5E : #0000005E;
+    out property <brush> text-accent-foreground-secondary: root.dark ? #00000080 : #FFFFFFB3;
+    out property <brush> text-accent-foreground-disabled: root.dark ? #FFFFFF87 : #FFFFFF;
+    out property <brush> focus-stroke-inner: root.dark ? #000000B3 : #FFFFFF;
+    out property <brush> focus-stroke-outer: root.dark ? #FFFFFF : #000000E6;
+}
+
+component FocusBorder inherits Rectangle {
+    border-width: 2px;
+    border-color: FluentColors.focus-stroke-outer;
+    Rectangle {
+        x: parent.border-width;
+        y: parent.border-width;
+        width: parent.width - 2 * parent.border-width;
+        height: parent.height - 2 * parent.border-width;
+        border-width: 1px;
+        border-radius: parent.border-radius - 2px;
+        border-color: FluentColors.focus-stroke-inner;
+    }
+}
+
+export component Button {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> enabled <=> touch.enabled;
+    out property <bool> has-focus: focus.has-focus;
+    out property <bool> pressed: self.enabled && touch.pressed;
+
+    callback clicked;
+
+    private property <brush> text-color: root.primary ? Palette.accent-foreground : Palette.control-foreground;
+
+    min-width: max(32px, layout.min-width);
+    min-height: max(32px, layout.min-height);
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    forward-focus: focus;
+
+    accessible-role: button;
+    accessible-enabled: root.enabled;
+    accessible-label: root.text;
+    accessible-action-default => { touch.clicked(); }
+
+    states [
+        disabled when !root.enabled: {
+            background.background: root.primary ? FluentColors.accent-disabled : FluentColors.control-disabled;
+            border.border-color: root.primary ? transparent : Palette.border;
+            root.text-color: root.primary ? FluentColors.text-accent-foreground-disabled : FluentColors.text-disabled;
+        }
+        pressed when root.pressed: {
+            background.background: root.primary ? Palette.accent-background.with-alpha(0.8) : FluentColors.control-tertiary;
+            border.border-color: Palette.border;
+            root.text-color: root.primary ? FluentColors.text-accent-foreground-secondary : FluentColors.text-secondary;
+        }
+        hover when touch.has-hover: {
+            background.background: root.primary ? Palette.accent-background.with-alpha(0.9) : FluentColors.control-secondary;
+        }
+    ]
+
+    background := Rectangle {
+        border-radius: 4px;
+        background: root.primary ? Palette.accent-background : Palette.control-background;
+        animate background, border-color { duration: 150ms; }
+
+        border := Rectangle {
+            border-radius: parent.border-radius;
+            border-width: 1px;
+            border-color: root.primary ? FluentColors.accent-control-border : FluentColors.control-border;
+        }
+
+        layout := HorizontalLayout {
+            padding-left: 12px;
+            padding-right: 12px;
+            padding-top: 5px;
+            padding-bottom: 5px;
+            alignment: center;
+            Text {
+                horizontal-alignment: center;
+                vertical-alignment: center;
+                text: root.text;
+                color: root.text-color;
+                animate color { duration: 150ms; }
+                accessible-role: none;
+            }
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+
+    focus := FocusScope {
+        x: 0;
+        width: 0; // Do not react to clicks.
+        enabled <=> root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Space || event.text == Key.Return) {
+                touch.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
+    if root.has-focus && root.enabled: FocusBorder {
+        border-radius: background.border-radius;
+    }
+}
+
+export component Switch {
+    in property <bool> enabled: true;
+    in-out property <bool> checked;
+    out property <bool> has-focus: focus.has-focus;
+
+    callback toggled;
+
+    function toggle-checked() {
+        if (!root.enabled) {
+            return;
+        }
+        root.checked = !root.checked;
+        root.toggled();
+    }
+
+    min-width: 40px;
+    min-height: 20px;
+    vertical-stretch: 0;
+    horizontal-stretch: 0;
+    forward-focus: focus;
+
+    accessible-role: switch;
+    accessible-enabled: root.enabled;
+    accessible-checkable: true;
+    accessible-checked: root.checked;
+    accessible-action-default => { root.toggle-checked(); }
+
+    states [
+        disabled when !root.enabled: {
+            rail.background: root.checked ? FluentColors.accent-disabled : transparent;
+            rail.border-color: FluentColors.control-strong-stroke-disabled;
+            thumb.background: root.checked ? FluentColors.text-accent-foreground-disabled : FluentColors.text-secondary;
+        }
+        pressed when touch.pressed: {
+            rail.background: root.checked ? Palette.accent-background.with-alpha(0.8) : FluentColors.control-alt-quaternary;
+            thumb.width: 17px;
+            thumb.height: 14px;
+            thumb.border-width: root.checked ? 1px : 0;
+            thumb.background: root.checked ? Palette.accent-foreground : FluentColors.text-secondary;
+        }
+        hover when touch.has-hover: {
+            rail.background: root.checked ? Palette.accent-background.with-alpha(0.9) : FluentColors.control-alt-tertiary;
+            thumb.width: 14px;
+            thumb.border-width: root.checked ? 1px : 0;
+            thumb.background: root.checked ? Palette.accent-foreground : FluentColors.text-secondary;
+        }
+        selected when root.checked: {
+            rail.background: Palette.accent-background;
+            thumb.border-width: 1px;
+            thumb.border-color: FluentColors.circle-border;
+            thumb.background: Palette.accent-foreground;
+        }
+    ]
+
+    VerticalLayout {
+        alignment: center;
+        Rectangle {
+            width: 40px;
+            height: 20px;
+
+            rail := Rectangle {
+                border-radius: 10px;
+                border-width: root.checked ? 0 : 1px;
+                border-color: FluentColors.control-strong-stroke;
+                background: FluentColors.control-alt-secondary;
+            }
+
+            thumb := Rectangle {
+                x: root.checked ? parent.width - self.width - 4px : 4px;
+                y: (parent.height - self.height) / 2;
+                width: 12px;
+                height: self.width;
+                border-radius: self.height / 2;
+                background: FluentColors.text-secondary;
+                border-color: FluentColors.circle-border;
+                animate background, width { duration: 150ms; easing: linear; }
+            }
+
+            if root.has-focus && root.enabled: FocusBorder {
+                border-radius: rail.border-radius;
+            }
+        }
+    }
+
+    touch := TouchArea {
+        enabled <=> root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.toggle-checked(); }
+    }
+
+    focus := FocusScope {
+        x: 0;
+        width: 0px; // Do not react to clicks.
+        enabled <=> root.enabled;
+        key-pressed(event) => {
+            if (event.text == Key.Space || event.text == Key.Return) {
+                root.toggle-checked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+}

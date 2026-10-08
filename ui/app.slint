@@ -1,7 +1,9 @@
 // PurgeKit UI. Three destinations: Clean, Space, Settings.
 // The UI never touches the file system; Rust pushes batched model updates.
 
-import { Button, ComboBox, LineEdit, ListView, ScrollView, Switch, ProgressIndicator, Palette } from "std-widgets.slint";
+import { ComboBox, LineEdit, ListView, ScrollView, ProgressIndicator, Palette } from "std-widgets.slint";
+// Button and Switch with a pointer cursor; see widgets.slint.
+import { Button, Switch } from "widgets.slint";
 
 export struct CategoryRow {
     node: int,
@@ -379,6 +381,7 @@ component ResultsView inherits VerticalLayout {
                 border-radius: 6px;
                 background: area.has-hover ? Palette.alternate-background : transparent;
                 area := TouchArea {
+                    mouse-cursor: pointer;
                     clicked => { App.toggle-category(cat.node); }
                 }
                 HorizontalLayout {
@@ -463,6 +466,7 @@ component TreeRowView inherits Rectangle {
     }
     accessible-label: root.item.name + ", " + root.item.size + (root.item.badge != "" ? ", " + root.item.badge : "") + (root.item.check == 1 ? ", checked" : root.item.check == 2 ? ", partly checked" : ", not checked");
     area := TouchArea {
+        mouse-cursor: pointer;
         clicked => { App.select-row(root.item.node); }
         double-clicked => { if (root.item.expandable) { App.expand-row(root.item.node); } }
     }
@@ -522,6 +526,7 @@ component TreeRowView inherits Rectangle {
             }
             TouchArea {
                 enabled: root.item.expandable;
+                mouse-cursor: pointer;
                 clicked => { App.expand-row(root.item.node); }
             }
         }
