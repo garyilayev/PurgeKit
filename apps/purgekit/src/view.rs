@@ -328,6 +328,9 @@ pub struct CategoryData {
     pub detail: String,
     pub size: String,
     pub check: i32,
+    /// Why the checkbox is partial: "Not selected: Recycle Bin." Empty unless
+    /// the category is partly selected.
+    pub note: String,
 }
 
 /// A cleaner whose owning app is running, so nothing in it is selected.
@@ -354,6 +357,30 @@ pub fn app_name(display_name: &str) -> &str {
         .strip_suffix(" web cache")
         .or_else(|| display_name.strip_suffix(" cache"))
         .unwrap_or(display_name)
+}
+
+/// Names the cleaners that keep a category checkbox partial. REVIEW and
+/// ADVANCED items start unchecked, so this explains the partial state
+/// right after a scan.
+fn partial_note(ctx: &Ctx<'_>, cleaners: &[u32]) -> String {
+    let t = ctx.tree();
+    let names_with = |want: Selection| -> Vec<&str> {
+        cleaners
+            .iter()
+            .filter(|&&c| t.selection(c) == want)
+            .map(|&c| ctx.rules.get(t.node(c).rule).display_name.as_str())
+            .collect()
+    };
+    let mut parts = Vec::new();
+    let unchecked = names_with(Selection::Unchecked);
+    if !unchecked.is_empty() {
+        parts.push(format!("Not selected: {}.", unchecked.join(", ")));
+    }
+    let partial = names_with(Selection::Partial);
+    if !partial.is_empty() {
+        parts.push(format!("Partly selected: {}.", partial.join(", ")));
+    }
+    parts.join(" ")
 }
 
 pub fn home(ctx: &Ctx<'_>) -> HomeData {
@@ -385,12 +412,18 @@ pub fn home(ctx: &Ctx<'_>) -> HomeData {
             .map(|&c| ctx.rules.get(t.node(c).rule).display_name.as_str())
             .collect();
         let files: u64 = cleaners.iter().map(|&c| t.node(c).file_count as u64).sum();
+        let check = ctx.check_of(cat);
         categories.push(CategoryData {
             node: cat as i32,
             name: t.node(cat).name.to_string(),
             detail: format!("{} · {} files", names.join(", "), format_count(files)),
             size: format_bytes(ctx.category_bytes(cat)),
-            check: check_code(ctx.check_of(cat)),
+            check: check_code(check),
+            note: if check == Selection::Partial {
+                partial_note(ctx, &cleaners)
+            } else {
+                String::new()
+            },
         });
     }
     let blocked_summary = match blocked.len() {
@@ -580,6 +613,73 @@ mod tests {
         assert!(names.contains(&"f_000007".to_string()));
         assert!(!names.contains(&"f_000008".to_string()));
         assert_eq!(r.tree.selected_total(), before);
+    }
+
+    #[test]
+    fn partial_category_names_what_is_not_selected() {
+        let r = result(3, false);
+        let rules = builtin();
+        let home_with = |show_advanced| {
+            home(&Ctx {
+                result: &r,
+                rules,
+                show_advanced,
+            })
+        };
+        // Chrome is fully selected: no note.
+        let h = home_with(true);
+        let browsers = h.categories.iter().find(|c| c.check == 1).unwrap();
+        assert!(browsers.note.is_empty());
+        // Windows has only the unchecked ADVANCED cleaner: unchecked, no note.
+        let windows = h.categories.iter().find(|c| c.name == "Windows").unwrap();
+        assert_eq!(windows.check, 0);
+        assert!(windows.note.is_empty());
+
+        // A partly selected cleaner and an unchecked one in the same category.
+        let mut r = result(3, false);
+        let (wt, _) = rules.find("windows.system_temp").unwrap();
+        let (ut, _) = rules.find("windows.user_temp").unwrap();
+        let mk = |rule, i: u64, p: &str| FoundFile {
+            rule,
+            volume: 1,
+            file_id: FileId128::from_u64(5_000 + i),
+            rel: RelPath::parse(p).unwrap(),
+            logical: 10,
+            alloc: 4096,
+            modified: FileTime(1),
+        };
+        r.tree = ResultTree::build(
+            rules,
+            vec![
+                CleanerInput {
+                    rule: ut,
+                    files: vec![mk(ut, 1, "a.tmp"), mk(ut, 2, "b.tmp")],
+                    virtual_size: None,
+                    selected: true,
+                },
+                CleanerInput {
+                    rule: wt,
+                    files: vec![mk(wt, 3, "old.log")],
+                    virtual_size: None,
+                    selected: false,
+                },
+            ],
+        );
+        let a_tmp = (0..r.tree.len() as u32)
+            .find(|&i| r.tree.node(i).name.as_ref() == "a.tmp")
+            .unwrap();
+        r.tree.toggle(a_tmp);
+        let h = home(&Ctx {
+            result: &r,
+            rules,
+            show_advanced: true,
+        });
+        let windows = h.categories.iter().find(|c| c.name == "Windows").unwrap();
+        assert_eq!(windows.check, 2);
+        assert_eq!(
+            windows.note,
+            "Not selected: Windows temporary files. Partly selected: Temporary files."
+        );
     }
 
     #[test]

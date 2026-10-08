@@ -887,6 +887,7 @@ fn refresh_home(ui: &AppWindow, g: &Model_) {
             detail: s(c.detail),
             size: s(c.size),
             check: c.check,
+            note: s(c.note),
         })
         .collect();
     app.set_categories(ModelRc::from(Rc::new(VecModel::from(cats))));

@@ -11,6 +11,7 @@ export struct CategoryRow {
     detail: string,
     size: string,
     check: int, // 0 unchecked, 1 checked, 2 partial
+    note: string, // why the check is partial; empty otherwise
 }
 
 export struct TreeRow {
@@ -378,7 +379,7 @@ component ResultsView inherits VerticalLayout {
             alignment: start;
             spacing: 2px;
             for cat in App.categories: Rectangle {
-                height: 56px;
+                height: cat.note != "" ? 72px : 56px;
                 border-radius: 6px;
                 background: area.has-hover ? Palette.alternate-background : transparent;
                 area := TouchArea {
@@ -407,6 +408,12 @@ component ResultsView inherits VerticalLayout {
                         }
                         Muted {
                             text: cat.detail;
+                            font-size: 12px;
+                            wrap: no-wrap;
+                            overflow: elide;
+                        }
+                        if cat.note != "": Muted {
+                            text: cat.note;
                             font-size: 12px;
                             wrap: no-wrap;
                             overflow: elide;
