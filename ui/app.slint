@@ -1,7 +1,7 @@
 // PurgeKit UI. Three destinations: Clean, Space, Settings.
 // The UI never touches the file system; Rust pushes batched model updates.
 
-import { ComboBox, LineEdit, ListView, ScrollView, ProgressIndicator, Palette } from "std-widgets.slint";
+import { AboutSlint, ComboBox, LineEdit, ListView, ScrollView, ProgressIndicator, Palette } from "std-widgets.slint";
 // Button and Switch with a pointer cursor; see widgets.slint.
 import { Button, Switch } from "widgets.slint";
 
@@ -131,6 +131,7 @@ export global App {
     callback remove-exclusion(int);
     callback export-diagnostics();
     callback check-updates();
+    callback open-slint();
 }
 
 // Fluent InfoBar / status colors. Palette has no semantic colors.
@@ -1010,6 +1011,37 @@ component Link inherits FocusScope {
     }
 }
 
+// Slint attribution (Royalty-free license). Opens slint.dev in the browser.
+// The TouchArea covers AboutSlint so its own open-url handler never runs.
+component SlintCredit inherits FocusScope {
+    accessible-role: button;
+    accessible-label: @tr("Made with Slint. Opens slint.dev in your browser.");
+    accessible-action-default => { App.open-slint(); }
+    key-pressed(event) => {
+        if (event.text == Key.Return || event.text == " ") {
+            App.open-slint();
+            return accept;
+        }
+        return reject;
+    }
+    VerticalLayout {
+        alignment: center;
+        AboutSlint {
+            width: 200px;
+            accessible-role: none;
+        }
+    }
+    Rectangle {
+        border-radius: 4px;
+        border-width: root.has-focus ? 2px : 0px;
+        border-color: Palette.foreground;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { App.open-slint(); }
+    }
+}
+
 component SettingsPage inherits ScrollView {
     VerticalLayout {
         alignment: start;
@@ -1078,6 +1110,11 @@ component SettingsPage inherits ScrollView {
                 text: @tr("Export diagnostics");
                 clicked => { App.export-diagnostics(); }
             }
+        }
+        HorizontalLayout {
+            padding-top: 18px;
+            alignment: center;
+            SlintCredit { }
         }
     }
 }

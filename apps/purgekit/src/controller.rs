@@ -28,6 +28,7 @@ use crate::{
 };
 
 const RELEASES_URL: &str = "https://github.com/garyilayev/PurgeKit/releases";
+const SLINT_URL: &str = "https://slint.dev";
 
 mod state {
     pub const IDLE: i32 = 0;
@@ -335,6 +336,12 @@ pub fn run() -> Result<(), slint::PlatformError> {
         // Opens the releases page in the browser. PurgeKit itself never connects.
         let _ = std::process::Command::new("explorer.exe")
             .arg(RELEASES_URL)
+            .spawn();
+    });
+    app.on_open_slint(|| {
+        // Slint attribution link. Opens the browser; PurgeKit itself never connects.
+        let _ = std::process::Command::new("explorer.exe")
+            .arg(SLINT_URL)
             .spawn();
     });
 
