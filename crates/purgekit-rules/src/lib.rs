@@ -57,9 +57,17 @@ pub fn builtin() -> &'static RuleSet {
         assert!(rules.len() <= RuleIdx::MAX as usize);
         RuleSet {
             rules,
-            version: format!("{}+{:08x}", env!("CARGO_PKG_VERSION"), sources_hash()),
+            version: builtin_version().to_string(),
         }
     })
+}
+
+/// Same value as `builtin().version`, without compiling the rules. Lets the
+/// app log the rule-set version at launch while the rules compile on a
+/// background thread.
+pub fn builtin_version() -> &'static str {
+    static VERSION: OnceLock<String> = OnceLock::new();
+    VERSION.get_or_init(|| format!("{}+{:08x}", env!("CARGO_PKG_VERSION"), sources_hash()))
 }
 
 /// FNV-1a over file names and contents; identifies the rule set in plans and the About page.
@@ -72,4 +80,12 @@ fn sources_hash() -> u32 {
         }
     }
     h
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn builtin_version_matches_compiled_set() {
+        assert_eq!(super::builtin_version(), super::builtin().version);
+    }
 }

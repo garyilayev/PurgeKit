@@ -17,7 +17,7 @@ use purgekit_engine::{
     CancelToken, CleanOptions, CleanReport, CleanupPlan, Exclusions, ScanOptions, ScanResult,
     clean, scan,
 };
-use purgekit_rules::{Mechanism, RuleIdx, builtin};
+use purgekit_rules::{Mechanism, RuleIdx, builtin, builtin_version};
 use purgekit_win::WinFs;
 use purgekit_win::elevate::{LaunchError, PipeServer, launch_elevated, new_pipe_name};
 use purgekit_win::shell::{format_date, format_date_time, set_clipboard_text};
@@ -69,13 +69,19 @@ fn now_unix() -> u64 {
 
 pub fn run() -> Result<(), slint::PlatformError> {
     let mut timer = LaunchTimer::start(purgekit_win::process_age());
+    // Compiling the embedded rules takes ~25 ms; overlap it with window
+    // creation. The first `builtin()` on this thread (in `refresh_all`) waits
+    // for it if it is not done yet.
+    std::thread::spawn(|| {
+        let _ = builtin();
+    });
     let data_dir = WinFs
         .resolve(KnownFolder::LocalAppData)
         .unwrap_or_else(std::env::temp_dir)
         .join("PurgeKit");
     timer.mark("data_dir");
     crate::logging::init(data_dir.join("logs"));
-    tracing::info!(version = APP_VERSION, rules = %builtin().version, "PurgeKit starting");
+    tracing::info!(version = APP_VERSION, rules = %builtin_version(), "PurgeKit starting");
     timer.mark("logging");
 
     let store = Store::new(data_dir);
